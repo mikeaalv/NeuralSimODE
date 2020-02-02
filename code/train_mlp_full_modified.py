@@ -54,7 +54,8 @@ args_internal_dict={
     "batchnorm_flag": ("Y",str),# whether batch normalization is used Y yes N no. Not working for resnet
     "num_layer": (0,int),#number of layer, not work for resnet
     "timetrainlen": (101,int), #the length of time-series to use in training
-    "inputfile": ("sparselinearode_new.small.stepwiseadd.mat",str)## the file name of input data
+    "inputfile": ("sparselinearode_new.small.stepwiseadd.mat",str),## the file name of input data
+     "p": (0.0,float)
 }
 ###fixed parameters: for communication related parameter within one node
 fix_para_dict={#"world_size": (1,int),
@@ -63,7 +64,6 @@ fix_para_dict={#"world_size": (1,int),
                "gpu": (None,int),
                # "multiprocessing_distributed": (False,bool),
                # "dist_backend": ("nccl",str), ##the preferred way approach of parallel gpu
-               "p": (0.0,float),
                "workers": (1,int)
 }
 inputdir="../data/"

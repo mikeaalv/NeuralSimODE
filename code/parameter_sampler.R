@@ -47,6 +47,9 @@ for(irow in seqdir){
   if("addon"%in%colnam && str_detect(string=infor[,"addon"],pattern="No_batch_normliaztion")){
     batchnorm_flag_str=paste0("--batchnorm-flag N")
   }
+  if("addon"%in%colnam && str_detect(string=infor[,"addon"],pattern="^dp")){
+    dropout_rate=str_replace_all(string=infor[,"addon"],pattern="^dp",replacement="")
+  }
   lines=readLines(shellscript)
   chline_ind=str_which(string=lines,pattern="^time")
   lines[chline_ind]=paste(paste0("time python3 train_mlp",addstri,"_modified.py "),
@@ -61,6 +64,7 @@ for(irow in seqdir){
               normalize_flag_str,batchnorm_flag_str,
               "--num-layer",infor[,"nlayer"],
               "--inputfile",infor[,"inputfile"],
+              "--p",dropout_rate,
               sep=" "
             )
   newfile=paste0(str_replace(string=shellscript,pattern="\\.sh",replacement=""),infor[1],".sh")

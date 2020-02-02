@@ -8,8 +8,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 # from .utils import load_state_dict_from_url
 
-__all__=['ResNet_mlp', 'resnet18_mlp', 'resnet34_mlp', 'resnet50_mlp', 'resnet101_mlp',
-           'resnet152_mlp', 'wide_resnet50_2_mlp', 'wide_resnet101_2_mlp' 'mlp_mod'] #'resnext50_32x4d', 'resnext101_32x8d',
+__all__=['ResNet_mlp','resnet10_mlp','resnet14_mlp','resnet18_mlp', 'resnet34_mlp', 'resnet50_mlp', 'resnet101_mlp','resnet152_mlp', 'wide_resnet50_2_mlp', 'wide_resnet101_2_mlp' 'mlp_mod'] #'resnext50_32x4d', 'resnext101_32x8d',
 
 ##currently no convolution layers
 # def conv3x3(in_planes, out_planes, stride=1, groups=1, dilation=1):
@@ -299,6 +298,21 @@ def _resnet(ninput,num_response,block,layers,pretrained,progress,ncellscale,**kw
 # pretrained: pretrained or not(not currently used) Default False
 # progress: progress(not currently used) Default True
 # **kwargs: to add other parameters
+
+def resnet10_mlp(ninput,num_response,p=0.0,ncellscale=1.0,pretrained=False,progress=True,**kwargs):
+    r"""ResNet-10 model adapted from
+    `"Deep Residual Learning for Image Recognition" <https://arxiv.org/pdf/1512.03385.pdf>`_
+    """
+    kwargs['p']=p
+    return _resnet(ninput,num_response,BasicBlock,[4],pretrained,progress,ncellscale,**kwargs)
+
+def resnet14_mlp(ninput,num_response,p=0.0,ncellscale=1.0,pretrained=False,progress=True,**kwargs):
+    r"""ResNet-14 model adapted from
+    `"Deep Residual Learning for Image Recognition" <https://arxiv.org/pdf/1512.03385.pdf>`_
+    """
+    kwargs['p']=p
+    return _resnet(ninput,num_response,BasicBlock,[6],pretrained,progress,ncellscale,**kwargs)
+
 
 def resnet18_mlp(ninput,num_response,p=0.0,ncellscale=1.0,pretrained=False,progress=True,**kwargs):
     r"""ResNet-18 model adapted from
