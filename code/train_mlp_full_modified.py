@@ -30,7 +30,7 @@ from torch.utils.data.sampler import Sampler
 
 # sys.path.insert(1,'/Users/yuewu/Dropbox (Edison_Lab@UGA)/Projects/Bioinformatics_modeling/nc_model/nnt/model_training/')
 # import resnet_mlp as models
-sys.path.insert(1,'/home/mikeaalv/method/nnt_str/nc_model/nnt/model_training/')
+# sys.path.insert(1,'/home/mikeaalv/method/nnt_str/nc_model/nnt/model_training/')
 import mlp_struc as models
 
 model_names=sorted(name for name in models.__dict__
@@ -69,6 +69,7 @@ fix_para_dict={#"world_size": (1,int),
 inputdir="../data/"
 def train(args,model,train_loader,optimizer,epoch,device,ntime):
     model.train()
+    trainloss=[]
     for batch_idx, (data, target) in enumerate(train_loader):
         # print("checkerstart")
         # if args.gpu is not None:
@@ -86,6 +87,10 @@ def train(args,model,train_loader,optimizer,epoch,device,ntime):
             print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss(per sample): {:.6f}'.format(
                 epoch,batch_idx*len(data),len(train_loader.dataset),
                 100. * batch_idx*len(data)/len(train_loader.dataset),loss.item()*ntime))
+                
+        trainloss.append(loss.item()*ntime)
+    
+    return sum(trainloss)/len(trainloss)
 
 def test(args,model,test_loader,device,ntime):
     model.eval()
@@ -101,7 +106,7 @@ def test(args,model,test_loader,device,ntime):
             test_loss.append(F.mse_loss(output,target,reduction='mean').item()) # sum
     test_loss_mean=sum(test_loss)/len(test_loss)
     print('\nTest set: Average loss (per sample): {:.4f}\n'.format(test_loss_mean*ntime))
-    return test_loss_mean
+    return test_loss_mean*ntime
 
 def parse_func_wrap(parser,termname,args_internal_dict):
     commandstring='--'+termname.replace("_","-")
@@ -112,10 +117,13 @@ def parse_func_wrap(parser,termname,args_internal_dict):
     
     return(parser)
 
-def save_checkpoint(state,is_best,filename='checkpoint.resnetode.tar'):
+def save_checkpoint(state,is_best,is_best_train,filename='checkpoint.resnetode.tar'):
     torch.save(state,filename)
     if is_best:
         shutil.copyfile(filename,'model_best.resnetode.tar')
+    
+    if is_best_train:
+        shutil.copyfile(filename,'model_best_train.resnetode.tar')
 
 class batch_sampler_block(Sampler):
     """
@@ -294,7 +302,7 @@ def main_worker(gpu,ngpus_per_node,args):
         "inputfile": (inputfile)
     }
     with open("pickle_inputwrap.dat","wb") as f1:
-        pickle.dump(inputwrap,f1)##protocol=4 if there is error: cannot serialize a bytes object larger than 4 GiB
+        pickle.dump(inputwrap,f1,protocol=4)##protocol=4 if there is error: cannot serialize a bytes object larger than 4 GiB
     
     Xtensortrain=torch.Tensor(Xvarnorm[list(train_in_ind),:])
     Resptensortrain=torch.Tensor(ResponseVar[list(train_in_ind),:])
@@ -317,10 +325,10 @@ def main_worker(gpu,ngpus_per_node,args):
     ninnersize=int(args.layersize_ratio*ntheta)
     ##store data
     with open("pickle_traindata.dat","wb") as f1:
-        pickle.dump(traindataloader,f1)
+        pickle.dump(traindataloader,f1,protocol=4)
     
     with open("pickle_testdata.dat","wb") as f2:
-        pickle.dump(testdataloader,f2)
+        pickle.dump(testdataloader,f2,protocol=4)
     
     dimdict={
         "nsample": (nsample,int),
@@ -329,7 +337,7 @@ def main_worker(gpu,ngpus_per_node,args):
         "ninnersize": (ninnersize,int)
     }
     with open("pickle_dimdata.dat","wb") as f3:
-        pickle.dump(dimdict,f3)
+        pickle.dump(dimdict,f3,protocol=4)
     
     ##free up some space (not currently set)
     ##create model
@@ -360,27 +368,33 @@ def main_worker(gpu,ngpus_per_node,args):
         optimizer=optim.SGD(model.parameters(),lr=args.learning_rate,momentum=args.momentum)
     elif args.optimizer=="adam":
         optimizer=optim.Adam(model.parameters(),lr=args.learning_rate)
+    elif args.optimizer=="nesterov_momentum":
+        optimizer=optim.SGD(model.parameters(),lr=args.learning_rate,momentum=args.momentum,nesterov=True)
     
     cudnn.benchmark=True
     ##model training
     for epoch in range(1,args.epochs+1):
-        train(args,model,traindataloader,optimizer,epoch,device,ntime)
+        acctr=train(args,model,traindataloader,optimizer,epoch,device,ntime)
         acc1=test(args,model,testdataloader,device,ntime)
         if epoch==1:
             best_acc1=acc1
+            best_train_acc=acctr
         
         # is_best=acc1>best_acc1
         is_best=acc1<best_acc1
+        is_best_train=acctr<best_train_acc
         # best_acc1=max(acc1,best_acc1)
         best_acc1=min(acc1,best_acc1)
+        best_train_acc=min(acctr,best_train_acc)
         save_checkpoint({
             'epoch': epoch,
             'arch': args.net_struct,
             'state_dict': model.state_dict(),
             'best_acc1': best_acc1,
+            'best_acctr': best_train_acc,
             'optimizer': optimizer.state_dict(),
             'args_input': args,
-        },is_best)
+        },is_best,is_best_train)
         # device=torch.device('cpu')
         # # model=TheModelClass(*args, **kwargs)
         # model.load_state_dict(torch.load('./1/checkpoint.resnetode.tar',map_location=device))
