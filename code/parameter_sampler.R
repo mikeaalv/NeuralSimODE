@@ -47,6 +47,7 @@ for(irow in seqdir){
   if("addon"%in%colnam && str_detect(string=infor[,"addon"],pattern="No_batch_normliaztion")){
     batchnorm_flag_str=paste0("--batchnorm-flag N")
   }
+  dropout_rate=0.0
   if("addon"%in%colnam && str_detect(string=infor[,"addon"],pattern="^dp")){
     dropout_rate=str_replace_all(string=infor[,"addon"],pattern="^dp",replacement="")
   }
