@@ -27,7 +27,7 @@ import torch.multiprocessing as mp
 import torch.optim as optim
 import torch.nn.functional as F
 import mlp_struc as models
-from train_mlp_full_modified import train, test, parse_func_wrap, batch_sampler_block
+from train_mlp_full_modified import train, test, parse_func_wrap, batch_sampler_block, save_checkpoint
 rowiseq=range(1,3)# +1 than number of folders
 devstr="cpu"#'cuda:0' cpu
 device=torch.device(devstr)#cuda:0
@@ -44,6 +44,7 @@ if loc=="mac":
         inputwrap=pickle.load(f1)
     
     loaddic=torch.load(inputdir+"result/"+str(rowi)+"/model_best_train.resnetode.tar",map_location=device)
+    # loaddic=torch.load("model_best_train.resnetode.tar",map_location=device)
     f=h5py.File(inputdir+"data/sparselinearode_new.small.stepwiseadd16.mat",'r')
     data=f.get('inputstore')
     Xvar=np.array(data).transpose()
@@ -113,3 +114,22 @@ for epoch in range(1,args.epochs+1):
     acctr=train(args,model,traindataloader,optimizer,epoch,device,ntime)
     acc3=test(args,model,traindataloader,device,ntime)# to make this works as the real training mse model.eval need to be selected in train to close batchnorm
     acc4=test(args,model,testdataloader,device,ntime)
+    if epoch==1:
+        best_acc1=acc4
+        best_train_acc=acctr
+    
+    # is_best=acc1>best_acc1
+    is_best=acc4<best_acc1
+    is_best_train=acctr<best_train_acc
+    # best_acc1=max(acc1,best_acc1)
+    best_acc1=min(acc4,best_acc1)
+    best_train_acc=min(acctr,best_train_acc)
+    save_checkpoint({
+        'epoch': epoch,
+        'arch': args.net_struct,
+        'state_dict': model.state_dict(),
+        'best_acc1': best_acc1,
+        'best_acctr': best_train_acc,
+        'optimizer': optimizer.state_dict(),
+        'args_input': args,
+    },is_best,is_best_train)
