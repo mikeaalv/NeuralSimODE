@@ -88,9 +88,9 @@ def train(args,model,train_loader,optimizer,epoch,device,ntime):
                 epoch,batch_idx*len(data),len(train_loader.dataset),
                 100. * batch_idx*len(data)/len(train_loader.dataset),loss.item()*ntime))
                 
-        trainloss.append(loss.item()*ntime)
+        trainloss.append(loss.item())
     
-    return sum(trainloss)/len(trainloss)
+    return (sum(trainloss)/len(trainloss))*ntime
 
 def test(args,model,test_loader,device,ntime):
     model.eval()
@@ -362,7 +362,7 @@ def main_worker(gpu,ngpus_per_node,args):
     
     # model=torch.nn.DataParallel(model).cuda()
     model=torch.nn.DataParallel(model)
-    device=torch.device("cuda:0")
+    device=torch.device("cuda:0")#cpu
     model.to(device)
     if args.optimizer=="sgd":
         optimizer=optim.SGD(model.parameters(),lr=args.learning_rate,momentum=args.momentum)
@@ -376,6 +376,7 @@ def main_worker(gpu,ngpus_per_node,args):
     for epoch in range(1,args.epochs+1):
         acctr=train(args,model,traindataloader,optimizer,epoch,device,ntime)
         acc1=test(args,model,testdataloader,device,ntime)
+        # test(args,model,traindataloader,device,ntime) # to record the performance on training sample with model.eval()
         if epoch==1:
             best_acc1=acc1
             best_train_acc=acctr

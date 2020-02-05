@@ -32,7 +32,7 @@ import mlp_struc as models
 # import the model from model script
 inputdir="/Users/yuewu/Dropbox (Edison_Lab@UGA)/Projects/Bioinformatics_modeling/nc_model/nnt/simulation/simulat.linear.small.mutinnt/mlp/"
 os.chdir(inputdir)
-from train_mlp_full_modified import train, test, parse_func_wrap
+from train_mlp_full_modified import train, test, parse_func_wrap, batch_sampler_block
 ##load information table
 infortab=pd.read_csv(inputdir+'submitlist.tab',sep="\t",header=0)
 infortab=infortab.astype({"batch_size": int,"test_batch_size": int})
@@ -42,8 +42,8 @@ infortab=infortab.astype({"batch_size": int,"test_batch_size": int})
 # sampseletrainind=[0,4999,7999]
 # sampseletestind=[0,499,999,1499,1999]
 ## number of samples from each group
-trainsamplen=3
-testsamplen=5
+trainsamplen=5
+testsamplen=3
 specind=[0,1,2,3,4,5]#[0,3,5,7,9]
 ntime=101
 # testselec=samplecombselec+samplewholeselec
@@ -54,14 +54,14 @@ rowiseq=range(1,7)# +1 than number of folders
 ##plot time trajectory
 for rowi in rowiseq:
     #load data
-    with open(inputdir+"result/res1/"+str(rowi)+"/pickle_dimdata.dat","rb") as f1:
+    with open(inputdir+"result/"+str(rowi)+"/pickle_dimdata.dat","rb") as f1:
         dimdict=pickle.load(f1)
     
-    with open(inputdir+"result/res1/"+str(rowi)+"/pickle_inputwrap.dat","rb") as f1:
+    with open(inputdir+"result/"+str(rowi)+"/pickle_inputwrap.dat","rb") as f1:
         inputwrap=pickle.load(f1)
     
     device=torch.device('cpu')
-    loaddic=torch.load(inputdir+"result/res1/"+str(rowi)+"/model_best.resnetode.tar",map_location=device)
+    loaddic=torch.load(inputdir+"result/"+str(rowi)+"/model_best.resnetode.tar",map_location=device)
     args=loaddic["args_input"]
     Xvarnorm=inputwrap["Xvarnorm"]
     ResponseVar=inputwrap["ResponseVar"]
@@ -117,13 +117,13 @@ for rowi in rowiseq:
             line1,=ax.plot(time,targetvec,label='simualted value')
             line2,=ax.plot(time,outputvec,label='estimated value')
             ax.legend()
-            plt.savefig(inputdir+"result/res1/test_"+str(elesampe)+"_spec_"+str(specele)+"_"+str(rowi)+"_"+label+".pdf")
+            plt.savefig(inputdir+"result/test_"+str(elesampe)+"_spec_"+str(specele)+"_"+str(rowi)+"_"+label+".pdf")
             # plt.close(fig)
             plt.cla()
             # fig,ax=plt.subplots()
             line,=ax.plot(time,targetvec-outputvec,label='residue')
             ax.legend()
-            plt.savefig(inputdir+"result/res1/test"+str(elesampe)+"_spec_"+str(specele)+"_"+str(rowi)+"_"+label+"_residue.pdf")
+            plt.savefig(inputdir+"result/test"+str(elesampe)+"_spec_"+str(specele)+"_"+str(rowi)+"_"+label+"_residue.pdf")
             # plt.close(fig)
             plt.cla()
 
@@ -133,13 +133,13 @@ fig,ax=plt.subplots()
 for rowi in rowiseq:
     # load the pickle
     name=infortab.iloc[rowi-1,0]
-    with open(inputdir+"result/res1/"+str(rowi)+"/pickle_dimdata.dat","rb") as f1:
+    with open(inputdir+"result/"+str(rowi)+"/pickle_dimdata.dat","rb") as f1:
         dimdict=pickle.load(f1)
     
-    with open(inputdir+"result/res1/"+str(rowi)+"/pickle_inputwrap.dat","rb") as f1:
+    with open(inputdir+"result/"+str(rowi)+"/pickle_inputwrap.dat","rb") as f1:
         inputwrap=pickle.load(f1)
     
-    loaddic=torch.load(inputdir+"result/res1/"+str(rowi)+"/model_best.resnetode.tar",map_location=device)
+    loaddic=torch.load(inputdir+"result/"+str(rowi)+"/model_best.resnetode.tar",map_location=device)
     args=loaddic["args_input"]
     Xvarnorm=inputwrap["Xvarnorm"]
     ResponseVar=inputwrap["ResponseVar"]
@@ -181,7 +181,7 @@ for rowi in rowiseq:
     
     line,=ax.plot(range(0,ntime),residuemean,label='residue')
     ax.legend()
-    plt.savefig(inputdir+"result/res1/test"+name+"residue.pdf")
+    plt.savefig(inputdir+"result/test"+name+"residue.pdf")
     plt.cla()
 
 ##extrapolation
