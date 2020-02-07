@@ -26,11 +26,11 @@ import torch.distributed as dist
 import torch.multiprocessing as mp
 import torch.optim as optim
 import torch.nn.functional as F
-sys.path.insert(1,'/Users/yuewu/Dropbox (Edison_Lab@UGA)/Projects/Bioinformatics_modeling/nc_model/nnt/model_training/')
+# sys.path.insert(1,'/Users/yuewu/Dropbox (Edison_Lab@UGA)/Projects/Bioinformatics_modeling/nc_model/nnt/model_training/')
 import mlp_struc as models
 
 # import the model from model script
-inputdir="/Users/yuewu/Dropbox (Edison_Lab@UGA)/Projects/Bioinformatics_modeling/nc_model/nnt/simulation/simulat.linear.small.mutinnt/mlp/"
+inputdir="./"
 os.chdir(inputdir)
 from train_mlp_full_modified import train, test, parse_func_wrap, batch_sampler_block
 ##load information table

@@ -18,10 +18,10 @@ require(foreach)
 require(doMC)
 require(readr)
 require(abind)
-comp="/Users/yuewu/"
-infortab=read.table(file=paste0("Dropbox (Edison_Lab@UGA)/Projects/Bioinformatics_modeling/nc_model/nnt/simulation/simulat.linear.small.mutinnt/mlp/submitlist.tab"),sep="\t",header=TRUE)
+projectpath="./"
+infortab=read.table(file=paste0(projectpath,"submitlist.tab"),sep="\t",header=TRUE)
 namevec=infortab[,"names"]
-dirres=paste0(comp,"Dropbox (Edison_Lab@UGA)/Projects/Bioinformatics_modeling/nc_model/nnt/simulation/simulat.linear.small.mutinnt/mlp/result/newressamller/")
+dirres=paste0(projectpath,"result/")
 dirlist=1:1#c(1,2,3,4,8)#1:9#1:6
 mselist=list(epoch=c(),train=c(),test=c(),names=c())
 for(dir in dirlist){
