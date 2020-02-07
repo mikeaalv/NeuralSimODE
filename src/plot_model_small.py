@@ -42,15 +42,15 @@ infortab=infortab.astype({"batch_size": int,"test_batch_size": int})
 # sampseletrainind=[0,4999,7999]
 # sampseletestind=[0,499,999,1499,1999]
 ## number of samples from each group
-trainsamplen=5
-testsamplen=3
-specind=[0,1,2,3,4,5]#[0,3,5,7,9]
-ntime=101
+trainsamplen=2
+testsamplen=2
+specind=[0,1]#[0,1,2,3,4,5]#[0,3,5,7,9]
+ntime=21#101
 # testselec=samplecombselec+samplewholeselec
 f=h5py.File(inputdir+"data/sparselinearode_new.small.mat",'r')
 data=f.get('inputstore')
 Xvar=np.array(data).transpose()
-rowiseq=range(1,7)# +1 than number of folders
+rowiseq=range(1,2)# +1 than number of folders
 ##plot time trajectory
 for rowi in rowiseq:
     #load data
@@ -147,8 +147,9 @@ for rowi in rowiseq:
     Xtensortest=torch.Tensor(Xvarnorm)
     Resptensortest=torch.Tensor(ResponseVar)
     testdataset=utils.TensorDataset(Xtensortest,Resptensortest)
-    train_sampler=None
-    testdataloader=utils.DataLoader(testdataset,batch_size=args.test_batch_size,shuffle=False,num_workers=args.workers,pin_memory=True)
+    # train_sampler=None
+    test_sampler=batch_sampler_block(testdataset,samplevec,nblock=trainsamplen)
+    testdataloader=utils.DataLoader(testdataset,shuffle=False,num_workers=args.workers,pin_memory=True,batch_sampler=test_sampler)
     ninnersize=int(args.layersize_ratio*dimdict["ntheta"][0])
     if bool(re.search("[rR]es[Nn]et",args.net_struct)):
         model=models.__dict__[args.net_struct](ninput=dimdict["ntheta"][0],num_response=dimdict["nspec"][0],p=args.p,ncellscale=args.layersize_ratio)

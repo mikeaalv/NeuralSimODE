@@ -22,7 +22,7 @@ comp="/Users/yuewu/"
 infortab=read.table(file=paste0("Dropbox (Edison_Lab@UGA)/Projects/Bioinformatics_modeling/nc_model/nnt/simulation/simulat.linear.small.mutinnt/mlp/submitlist.tab"),sep="\t",header=TRUE)
 namevec=infortab[,"names"]
 dirres=paste0(comp,"Dropbox (Edison_Lab@UGA)/Projects/Bioinformatics_modeling/nc_model/nnt/simulation/simulat.linear.small.mutinnt/mlp/result/newressamller/")
-dirlist=1:6#c(1,2,3,4,8)#1:9#1:6
+dirlist=1:1#c(1,2,3,4,8)#1:9#1:6
 mselist=list(epoch=c(),train=c(),test=c(),names=c())
 for(dir in dirlist){
   locdir=paste0(dirres,dir,"/")
@@ -80,3 +80,4 @@ for(namegroup in names){
   summtab[namegroup,"train_mean"]=mean(subtab2[,"train"])
   summtab[namegroup,"test_mean"]=mean(subtab2[,"test"])
 }
+save(summtab,msetablong,file=paste0(dirres,"Rplot_store.RData"))

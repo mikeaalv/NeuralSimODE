@@ -55,7 +55,8 @@ args_internal_dict={
     "num_layer": (0,int),#number of layer, not work for resnet
     "timetrainlen": (101,int), #the length of time-series to use in training
     "inputfile": ("sparselinearode_new.small.stepwiseadd.mat",str),## the file name of input data
-     "p": (0.0,float)
+     "p": (0.0,float),
+     "gpu_use": (1,int)# whehter use gpu 1 use 0 not use
 }
 ###fixed parameters: for communication related parameter within one node
 fix_para_dict={#"world_size": (1,int),
@@ -271,6 +272,7 @@ def main_worker(gpu,ngpus_per_node,args):
     if args.normalize_flag is 'Y':
         ##the normalization if exist should be after separation of training and testing data to prevent leaking
         ##normalization (X-mean)/sd
+        ##normalization include time. Train and test model need to have at least same range or same mean&sd for time
         Xvartrain_norm=(Xvartrain-Xvartrain.mean(axis=0))/Xvartrain.std(axis=0)
         Xvartest_norm=(Xvartest-Xvartest.mean(axis=0))/Xvartest.std(axis=0)
         Xvarnorm[list(trainind),:]=np.copy(Xvartrain_norm)
@@ -299,7 +301,11 @@ def main_worker(gpu,ngpus_per_node,args):
         # "Xvarstd": (Xvarstd),
         "train_extr_ind": (train_extr_ind), ## the extrapolation point index on testing set
         "test_extr_ind": (test_extr_ind), ## the extrapolation point index on training set
-        "inputfile": (inputfile)
+        "inputfile": (inputfile),
+        "ngpus_per_node": (ngpus_per_node),## number of gpus
+        "numsamptest": (numsamptest),#number of testing samples
+        "traintimeind": (traintimeind),
+        "testtimeind": (testtimeind)
     }
     with open("pickle_inputwrap.dat","wb") as f1:
         pickle.dump(inputwrap,f1,protocol=4)##protocol=4 if there is error: cannot serialize a bytes object larger than 4 GiB
@@ -362,7 +368,11 @@ def main_worker(gpu,ngpus_per_node,args):
     
     # model=torch.nn.DataParallel(model).cuda()
     model=torch.nn.DataParallel(model)
-    device=torch.device("cuda:0")#cpu
+    if args.gpu_use==1:
+        device=torch.device("cuda:0")#cpu
+    else:
+        device=torch.device("cpu")
+    
     model.to(device)
     if args.optimizer=="sgd":
         optimizer=optim.SGD(model.parameters(),lr=args.learning_rate,momentum=args.momentum)
