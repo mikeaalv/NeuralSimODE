@@ -1,0 +1,20 @@
+Train Epoch: 1 [0/336 (0%)]	Loss(per sample): 2312.658005
+
+Test set: Average loss (per sample): 1605.6623
+
+Train Epoch: 2 [0/336 (0%)]	Loss(per sample): 522.364305
+
+Test set: Average loss (per sample): 1130.1209
+
+Train Epoch: 3 [0/336 (0%)]	Loss(per sample): 210.641490
+
+Test set: Average loss (per sample): 569.7791
+
+Train Epoch: 4 [0/336 (0%)]	Loss(per sample): 166.290692
+
+Test set: Average loss (per sample): 163.5161
+
+Train Epoch: 5 [0/336 (0%)]	Loss(per sample): 112.589443
+
+Test set: Average loss (per sample): 118.5548
+
