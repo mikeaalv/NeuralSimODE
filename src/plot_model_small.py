@@ -50,6 +50,7 @@ ntime=21#101
 f=h5py.File(inputdir+"data/sparselinearode_new.small.mat",'r')
 data=f.get('inputstore')
 Xvar=np.array(data).transpose()
+plotcollect={}
 rowiseq=range(1,2)# +1 than number of folders
 ##plot time trajectory
 for rowi in rowiseq:
@@ -117,13 +118,17 @@ for rowi in rowiseq:
             line1,=ax.plot(time,targetvec,label='simualted value')
             line2,=ax.plot(time,outputvec,label='estimated value')
             ax.legend()
-            plt.savefig(inputdir+"result/test_"+str(elesampe)+"_spec_"+str(specele)+"_"+str(rowi)+"_"+label+".pdf")
+            pdfname="test_"+str(elesampe)+"_spec_"+str(specele)+"_"+str(rowi)+"_"+label
+            plt.savefig(inputdir+"result/"+pdfname+".pdf")
             # plt.close(fig)
+            plotcollect[pdfname]=ax
             plt.cla()
             # fig,ax=plt.subplots()
             line,=ax.plot(time,targetvec-outputvec,label='residue')
             ax.legend()
-            plt.savefig(inputdir+"result/test"+str(elesampe)+"_spec_"+str(specele)+"_"+str(rowi)+"_"+label+"_residue.pdf")
+            pdfname="test"+str(elesampe)+"_spec_"+str(specele)+"_"+str(rowi)+"_"+label+"_residue"
+            plt.savefig(inputdir+"result/"+pdfname+".pdf")
+            plotcollect[pdfname]=ax
             # plt.close(fig)
             plt.cla()
 
@@ -182,7 +187,15 @@ for rowi in rowiseq:
     
     line,=ax.plot(range(0,ntime),residuemean,label='residue')
     ax.legend()
-    plt.savefig(inputdir+"result/test"+name+"residue.pdf")
+    pdfname="test"+name+"residue"
+    plt.savefig(inputdir+"result/"+pdfname+".pdf")
+    plotcollect[pdfname]=ax
     plt.cla()
 
+with open("plotsave.dat","wb") as f1:
+    pickle.dump(plotcollect,f1,protocol=4)
+
+tmpsave={'data': data, 'output': output, 'target': target, 'ninnersize': ninnersize}
+with open("datatemp.dat","wb") as f1:
+    pickle.dump(tmpsave,f1,protocol=4)
 ##extrapolation
