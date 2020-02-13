@@ -26,7 +26,7 @@ matrix:
         # Replace dep1 dep2 ... with your dependencies
         - conda create -q -n test-environment python=$TRAVIS_PYTHON_VERSION
         - conda activate test-environment
-        - conda install --file requirements.txt
+        - while read requirement; do conda install $requirement; done < requirements.txt
       script:
         - cd tests
         - coverage run --source=NeuralSimODE -m unittest discover -s .
