@@ -1,0 +1,1 @@
+time python3 train_mlp_full_modified.py  --batch-size 42 --test-batch-size 42 --epochs 5 --learning-rate 0.01 --seed 1 --net-struct resnet18_mlp --layersize-ratio 4 --optimizer adam   --num-layer 18 --timetrainlen 21 --gpu-use 0 --inputfile sparselinearode_new.small.stepwiseadd.mat > testmodel.1.out
