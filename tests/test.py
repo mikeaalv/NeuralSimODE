@@ -91,7 +91,6 @@ class NNTODETest(unittest.TestCase):
                 self.assertTrue(False)
         except:
             self.assertTrue(False)
-        compare file name
     
     def test_plot_model_small(self):
         '''
