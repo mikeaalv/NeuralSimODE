@@ -47,7 +47,7 @@ class NNTODETest(unittest.TestCase):
         except:
             self.assertTrue(False)
         
-	    self.assertTrue(True)
+        self.assertTrue(True)
         
     def test_run_train(self):
         '''
