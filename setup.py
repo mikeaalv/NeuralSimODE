@@ -9,7 +9,7 @@ setuptools.setup(
     url='https://github.com/artedison/NeuralSimODE',
     license='MIT',
     packages=['NeuralSimODE'],
-    package_dir={'depfinder':'src'},
+    package_dir={'NeuralSimODE':'src'},
     install_requires=[
         'coverage',
         'coveralls'
