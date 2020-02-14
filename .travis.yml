@@ -17,6 +17,7 @@ install:
   - conda create -q -n test-environment python=$TRAVIS_PYTHON_VERSION r-essentials r-base
   - conda activate test-environment
   - conda install r-stringr r-magrittr r-ggplot2 r-reshape2
+  - conda config --add channels conda-forge
   - while read requirement; do conda install $requirement; done < requirements.txt
 script:
   - cd tests
