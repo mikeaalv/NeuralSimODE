@@ -30,6 +30,8 @@ import torch.nn.functional as F
 import mlp_struc as models
 
 # import the model from model script
+random.seed(1)
+torch.manual_seed(1)
 inputdir="./"
 os.chdir(inputdir)
 from train_mlp_full_modified import train, test, parse_func_wrap, batch_sampler_block
@@ -47,7 +49,7 @@ testsamplen=2
 specind=[0,1]#[0,1,2,3,4,5]#[0,3,5,7,9]
 ntime=21#101
 # testselec=samplecombselec+samplewholeselec
-f=h5py.File(inputdir+"data/sparselinearode_new.small.mat",'r')
+f=h5py.File(inputdir+"data/sparselinearode_new.small.stepwiseadd.mat",'r')
 data=f.get('inputstore')
 Xvar=np.array(data).transpose()
 plotcollect={}
@@ -192,8 +194,8 @@ for rowi in rowiseq:
     plotcollect[pdfname]=ax
     plt.cla()
 
-with open("plotsave.dat","wb") as f1:
-    pickle.dump(plotcollect,f1,protocol=4)
+# with open("plotsave.dat","wb") as f1:
+#     pickle.dump(plotcollect,f1,protocol=4)
 
 tmpsave={'data': data, 'output': output, 'target': target, 'ninnersize': ninnersize}
 with open("datatemp.dat","wb") as f1:

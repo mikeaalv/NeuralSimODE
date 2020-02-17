@@ -80,4 +80,4 @@ for(namegroup in names){
   summtab[namegroup,"train_mean"]=mean(subtab2[,"train"])
   summtab[namegroup,"test_mean"]=mean(subtab2[,"test"])
 }
-save(summtab,msetablong,p,file=paste0(dirres,"Rplot_store.RData"))
+save(summtab,msetablong,file=paste0(dirres,"Rplot_store.RData"))#,p
