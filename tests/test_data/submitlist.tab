@@ -1,0 +1,2 @@
+names	net_struct	layersize_ratio	nlayer	addon	batch_size	test_batch_size	epochs	learning_rate	random_seed	optimizer	inputfile
+resnet18_hidlayer4_dim16	resnet18_mlp	4	18		2	2	5	0.01	1	adam	sparselinearode_new.small.stepwiseadd.mat
