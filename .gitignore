@@ -3,3 +3,4 @@
 /tests/.*
 /tests/output/*
 /tests/__*
+.coverage
