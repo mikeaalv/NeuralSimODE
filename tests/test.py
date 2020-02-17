@@ -11,6 +11,7 @@ import re
 import matplotlib.pyplot as plt
 import random
 import numpy as np
+import warnings
 
 prepath=os.getcwd()
 test_input=prepath+"/test_data/"
@@ -209,6 +210,9 @@ class NNTODETest(unittest.TestCase):
             for layer in curr_state_dict.keys():
                 layer_size_equal=layer_size_equal and (curr_state_dict[layer].shape==pre_state_dict[layer].shape)
             if dimequal and layer_size_equal and valequal and perf_equal:
+                self.assertTrue(True)
+            elif not valequal:
+                warnings.warn("the value are not the same")
                 self.assertTrue(True)
             else:
                 self.assertTrue(False)
