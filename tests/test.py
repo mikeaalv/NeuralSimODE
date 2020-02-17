@@ -196,10 +196,13 @@ class NNTODETest(unittest.TestCase):
             arg_equal=currstore['args_input']==prestore['args_input']
             arch_equal=currstore['arch']==prestore['arch']
             epoch_equal=currstore['epoch']==prestore['epoch']
+            print('val: '+str(inputwrap_true)+' '+str(dimdict_true)+' '+str(arch_equal)+' '+str(epoch_equal)+'\n')
             if inputwrap_true and dimdict_true and arg_equal and arch_equal and epoch_equal:
                 valequal=True
             else:
                 valequal=False
+            
+            print('perf: '+str(currstore['best_acc1']-prestore['best_acc1'])+' '+str(currstore['best_acctr']-prestore['best_acctr'])+'\n')
             if (currstore['best_acc1']-prestore['best_acc1'])<smalval and (currstore['best_acctr']-prestore['best_acctr'])<smalval:
                 perf_equal=True
             else:
@@ -209,6 +212,7 @@ class NNTODETest(unittest.TestCase):
             layer_size_equal=True
             for layer in curr_state_dict.keys():
                 layer_size_equal=layer_size_equal and (curr_state_dict[layer].shape==pre_state_dict[layer].shape)
+            print('final: '+str(dimequal)+' '+str(layer_size_equal)+' '+str(valequal)+' '+str(perf_equal)+'\n')
             if dimequal and layer_size_equal and valequal and perf_equal:
                 self.assertTrue(True)
             elif not valequal:
