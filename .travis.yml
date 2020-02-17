@@ -21,6 +21,7 @@ install:
   - while read requirement; do conda install $requirement; done < requirements.txt
 script:
   - cd tests
-  - coverage run --source=NeuralSimODE -m unittest discover -s .
+  # - coverage run --source=NeuralSimODE -m unittest discover -s .
+  - python test.py
 after_success:
   - coveralls
