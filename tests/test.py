@@ -213,7 +213,7 @@ class NNTODETest(unittest.TestCase):
             for layer in curr_state_dict.keys():
                 layer_size_equal=layer_size_equal and (curr_state_dict[layer].shape==pre_state_dict[layer].shape)
             print('final: '+str(dimequal)+' '+str(layer_size_equal)+' '+str(valequal)+' '+str(perf_equal)+'\n')
-            if dimequal and layer_size_equal and perf_equal: #valequal
+            if dimequal and layer_size_equal and valequal: #perf_equal
                 self.assertTrue(True)
             else:
                 self.assertTrue(False)
