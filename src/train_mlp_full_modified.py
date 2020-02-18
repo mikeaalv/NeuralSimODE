@@ -25,6 +25,7 @@ import torch.backends.cudnn as cudnn
 import torch.distributed as dist
 import torch.multiprocessing as mp
 import torch.optim as optim
+from troch.optim import lr_scheduler
 import torch.nn.functional as F
 from torch.utils.data.sampler import Sampler
 
@@ -56,7 +57,8 @@ args_internal_dict={
     "timetrainlen": (101,int), #the length of time-series to use in training
     "inputfile": ("sparselinearode_new.small.stepwiseadd.mat",str),## the file name of input data
      "p": (0.0,float),
-     "gpu_use": (1,int)# whehter use gpu 1 use 0 not use
+     "gpu_use": (1,int),# whehter use gpu 1 use 0 not use
+     "scheduler": ("",string)# the lr decay scheduler choices: step, plateau,
 }
 ###fixed parameters: for communication related parameter within one node
 fix_para_dict={#"world_size": (1,int),
@@ -381,12 +383,24 @@ def main_worker(gpu,ngpus_per_node,args):
     elif args.optimizer=="nesterov_momentum":
         optimizer=optim.SGD(model.parameters(),lr=args.learning_rate,momentum=args.momentum,nesterov=True)
     
+    if args.scheduler=='step':
+        scheduler=lr_scheduler.StepLR(optimizer,step_size=200,gamma=0.1)
+    elif args.scheduler=='plateau':
+        scheduler=lr_scheduler.ReduceLROnPlateau(optimizer,'min',factor=0.1)
+    else:
+        scheduler=None
+    
     cudnn.benchmark=True
     ##model training
     for epoch in range(1,args.epochs+1):
         acctr=train(args,model,traindataloader,optimizer,epoch,device,ntime)
         acc1=test(args,model,testdataloader,device,ntime)
         # test(args,model,traindataloader,device,ntime) # to record the performance on training sample with model.eval()
+        if scheduler is not None:
+            if args.scheduler=='step':
+                scheduler.step()
+            else args.scheduler=='plateau':
+                scheduler.step(acctr)##not a good implementation, just try to do only train+test
         if epoch==1:
             best_acc1=acc1
             best_train_acc=acctr

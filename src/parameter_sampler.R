@@ -51,6 +51,9 @@ for(irow in seqdir){
   if("addon"%in%colnam && str_detect(string=infor[,"addon"],pattern="^dp")){
     dropout_rate=str_replace_all(string=infor[,"addon"],pattern="^dp",replacement="")
   }
+  if("addon"%in%colnam && str_detect(string=infor[,"addon"],pattern="^scheduler")){
+    scheduler=str_replace_all(string=infor[,"addon"],pattern="^scheduler\\_",replacement="")
+  }
   lines=readLines(shellscript)
   chline_ind=str_which(string=lines,pattern="^time")
   lines[chline_ind]=paste(paste0("time python3 train_mlp",addstri,"_modified.py "),
@@ -66,6 +69,7 @@ for(irow in seqdir){
               "--num-layer",infor[,"nlayer"],
               "--inputfile",infor[,"inputfile"],
               "--p",dropout_rate,
+              "--scheduler",scheduler
               sep=" "
             )
   newfile=paste0(str_replace(string=shellscript,pattern="\\.sh",replacement=""),infor[1],".sh")
