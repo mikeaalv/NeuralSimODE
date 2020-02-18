@@ -193,7 +193,15 @@ class NNTODETest(unittest.TestCase):
             device=torch.device('cpu')
             currstore=torch.load(projresdir_1+runoutputlist[6],map_location=device)
             prestore=torch.load(test_input+runoutputlist[6],map_location=device)
-            arg_equal=currstore['args_input']==prestore['args_input']
+            ## as new keys will be added to args in future version
+            currarg=currstore['args_input'].__dict__
+            prearg=prestore['args_input'].__dict__
+            currkeys=set(currarg.keys())
+            prekeys=set(prearg.keys())
+            overkeys=currkeys.intersection(prekeys)
+            arg_equal=True
+            for key in overkeys:
+                arg_equal=arg_equal and (currarg[key]==prearg[key])
             arch_equal=currstore['arch']==prestore['arch']
             epoch_equal=currstore['epoch']==prestore['epoch']
             print('val: '+str(inputwrap_true)+' '+str(dimdict_true)+' '+str(arch_equal)+' '+str(epoch_equal)+'\n')
