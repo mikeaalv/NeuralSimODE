@@ -56,6 +56,7 @@ for(irow in seqdir){
   }
   lines=readLines(shellscript)
   chline_ind=str_which(string=lines,pattern="^time")
+  lineend=str_extract_all(string=lines[chline_ind],pattern="\\w+>>.*$")[[1]]
   lines[chline_ind]=paste(paste0("time python3 train_mlp",addstri,"_modified.py "),
               "--batch-size",format(infor[,"batch_size"],scientific=FALSE),
               "--test-batch-size",format(infor[,"test_batch_size"],scientific=FALSE),
@@ -70,6 +71,7 @@ for(irow in seqdir){
               "--inputfile",infor[,"inputfile"],
               "--p",dropout_rate,
               "--scheduler",scheduler,
+              lineend,
               sep=" "
             )
   newfile=paste0(str_replace(string=shellscript,pattern="\\.sh",replacement=""),infor[1],".sh")

@@ -25,7 +25,7 @@ import torch.backends.cudnn as cudnn
 import torch.distributed as dist
 import torch.multiprocessing as mp
 import torch.optim as optim
-from troch.optim import lr_scheduler
+from torch.optim import lr_scheduler
 import torch.nn.functional as F
 from torch.utils.data.sampler import Sampler
 
@@ -58,7 +58,7 @@ args_internal_dict={
     "inputfile": ("sparselinearode_new.small.stepwiseadd.mat",str),## the file name of input data
      "p": (0.0,float),
      "gpu_use": (1,int),# whehter use gpu 1 use 0 not use
-     "scheduler": ("",string)# the lr decay scheduler choices: step, plateau,
+     "scheduler": ("",str)# the lr decay scheduler choices: step, plateau,
 }
 ###fixed parameters: for communication related parameter within one node
 fix_para_dict={#"world_size": (1,int),
