@@ -69,7 +69,7 @@ for(irow in seqdir){
               "--num-layer",infor[,"nlayer"],
               "--inputfile",infor[,"inputfile"],
               "--p",dropout_rate,
-              "--scheduler",scheduler
+              "--scheduler",scheduler,
               sep=" "
             )
   newfile=paste0(str_replace(string=shellscript,pattern="\\.sh",replacement=""),infor[1],".sh")

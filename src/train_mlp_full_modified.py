@@ -399,7 +399,7 @@ def main_worker(gpu,ngpus_per_node,args):
         if scheduler is not None:
             if args.scheduler=='step':
                 scheduler.step()
-            else args.scheduler=='plateau':
+            elif args.scheduler=='plateau':
                 scheduler.step(acc1)##not a good implementation, just try to do only train+test
         if epoch==1:
             best_acc1=acc1
