@@ -8,7 +8,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 # from .utils import load_state_dict_from_url
 
-__all__=['ResNet_mlp','resnet10_mlp','resnet14_mlp','resnet18_mlp', 'resnet34_mlp', 'resnet50_mlp', 'resnet101_mlp','resnet152_mlp', 'wide_resnet50_2_mlp', 'wide_resnet101_2_mlp' 'mlp_mod'] #'resnext50_32x4d', 'resnext101_32x8d',
+__all__=['ResNet_mlp','resnet10_mlp','resnet14_mlp','resnet18_mlp', 'resnet34_mlp', 'resnet50_mlp', 'resnet101_mlp','resnet152_mlp','resnet2x_mlp','wide_resnet50_2_mlp', 'wide_resnet101_2_mlp' 'mlp_mod'] #'resnext50_32x4d', 'resnext101_32x8d',
 
 ##currently no convolution layers
 # def conv3x3(in_planes, out_planes, stride=1, groups=1, dilation=1):
@@ -353,6 +353,14 @@ def resnet152_mlp(ninput,num_response,p=0.0,ncellscale=1.0,pretrained=False,prog
     kwargs['p']=p
     return _resnet(ninput,num_response,Bottleneck,[50],pretrained,progress,ncellscale,**kwargs)
 
+def resnet2x_mlp(ninput,num_response,p=0.0,ncellscale=1.0,pretrained=False,progress=True,x=9,**kwargs):
+    r"""ResNet-x model adapted from
+    `"Deep Residual Learning for Image Recognition" <https://arxiv.org/pdf/1512.03385.pdf>`_
+    x can be any number and the number of layers will be 2x, default 9 that is resnet18
+    use structure as resnet18, that is no bottleneck as in deeper networks
+    """
+    kwargs['p']=p
+    return _resnet(ninput,num_response,BasicBlock,[2*x-2],pretrained,progress,ncellscale,**kwargs)
 
 # def resnext50_32x4d(pretrained=False, progress=True, **kwargs):
 #     r"""ResNeXt-50 32x4d model from

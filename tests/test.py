@@ -260,6 +260,33 @@ class NNTODETest(unittest.TestCase):
         except:
             self.assertTrue(False)
 
+    def test_resnet2x(self):
+        try:
+            import mlp_struc as models
+            ##resnet 18
+            model_resnet18=models.__dict__['resnet18_mlp'](ninput=10,num_response=10,p=0,ncellscale=1)
+            model_resnet18_x=models.__dict__['resnet2x_mlp'](ninput=10,num_response=10,p=0,ncellscale=1,x=9)
+            model_resnet18_dic=model_resnet18.state_dict()
+            model_resnet18_x_dic=model_resnet18_x.state_dict()
+            layer_size_equal_18=True
+            for layer in model_resnet18_dic.keys():
+                layer_size_equal_18=layer_size_equal_18 and (model_resnet18_dic[layer].shape==model_resnet18_x_dic[layer].shape)
+            ##resnet 34
+            model_resnet34=models.__dict__['resnet34_mlp'](ninput=10,num_response=10,p=0,ncellscale=1)
+            model_resnet34_x=models.__dict__['resnet2x_mlp'](ninput=10,num_response=10,p=0,ncellscale=1,x=17)
+            model_resnet34_dic=model_resnet34.state_dict()
+            model_resnet34_x_dic=model_resnet34_x.state_dict()
+            layer_size_equal_34=True
+            for layer in model_resnet34_dic.keys():
+                layer_size_equal_34=layer_size_equal_34 and (model_resnet34_dic[layer].shape==model_resnet34_x_dic[layer].shape)
+            if layer_size_equal_18 and layer_size_equal_34:
+                self.assertTrue(True)
+            else:
+                self.assertTrue(False)
+        except:
+            self.assertTrue(False)
+        
+
 def cmp(a,b):
     return (a>b)-(a<b)
 
