@@ -27,7 +27,7 @@ mselist=list(epoch=c(),train=c(),test=c(),names=c())
 for(dir in dirlist){
   locdir=paste0(dirres,dir,"/")
   files=list.files(locdir)
-  filesoutput=files[str_which(string=files,pattern="testmodel\\.\\d+\\.out")]
+  filesoutput=files[str_which(string=files,pattern="testmodel\\.\\d+\\.out")]##might use testmodel\\..+\\.out for different filename (user should ensure)
   lines=readLines(paste0(locdir,filesoutput))
   train_ind=str_which(string=lines,pattern="Train Epoch:")
   test_ind=str_which(string=lines,pattern="Test set:")
