@@ -71,6 +71,7 @@ for(irow in seqdir){
               "--inputfile",infor[,"inputfile"],
               "--p",dropout_rate,
               "--scheduler",scheduler,
+              "--lr-print 1",
               lineend,
               sep=" "
             )
