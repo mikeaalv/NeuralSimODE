@@ -13,6 +13,8 @@ import random
 import numpy as np
 import warnings
 
+import torch.optim as optim
+
 prepath=os.getcwd()
 test_input=prepath+"/test_data/"
 test_output=prepath+"/output/"
@@ -243,22 +245,6 @@ class NNTODETest(unittest.TestCase):
                 self.assertTrue(False)
         except:
             self.assertTrue(False)
-    
-    def test_clean(self):
-        try:
-            for filename in os.listdir(test_output):
-                file_path=os.path.join(test_output,filename)
-                try:
-                    if os.path.isfile(file_path) or os.path.islink(file_path):
-                        os.unlink(file_path)
-                    elif os.path.isdir(file_path):
-                        shutil.rmtree(file_path)
-                except Exception as e:
-                    print('Failed to delete %s. Reason: %s' % (file_path,e))
-                    self.assertTrue(False)
-            self.assertTrue(True)
-        except:
-            self.assertTrue(False)
 
     def test_resnet2x(self):
         try:
@@ -285,8 +271,35 @@ class NNTODETest(unittest.TestCase):
                 self.assertTrue(False)
         except:
             self.assertTrue(False)
+    def test_get_lr(self):
+        try:
+            import mlp_struc as models
+            from train_mlp_full_modified import get_lr
+            model_resnet18=models.__dict__['resnet18_mlp'](ninput=10,num_response=10,p=0,ncellscale=1)
+            optimizer=optim.SGD(model_resnet18.parameters(),lr=0.1,momentum=0.1)
+            if(get_lr(optimizer)==0.1):
+                self.assertTrue(True)
+            else:
+                self.assertTrue(False)
+        except:
+            self.assertTrue(False)
         
-
+    def test_clean(self):
+        try:
+            for filename in os.listdir(test_output):
+                file_path=os.path.join(test_output,filename)
+                try:
+                    if os.path.isfile(file_path) or os.path.islink(file_path):
+                        os.unlink(file_path)
+                    elif os.path.isdir(file_path):
+                        shutil.rmtree(file_path)
+                except Exception as e:
+                    print('Failed to delete %s. Reason: %s' % (file_path,e))
+                    self.assertTrue(False)
+            self.assertTrue(True)
+        except:
+            self.assertTrue(False)
+ 
 def cmp(a,b):
     return (a>b)-(a<b)
 

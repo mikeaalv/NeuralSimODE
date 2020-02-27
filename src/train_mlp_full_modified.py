@@ -58,7 +58,8 @@ args_internal_dict={
     "inputfile": ("sparselinearode_new.small.stepwiseadd.mat",str),## the file name of input data
      "p": (0.0,float),
      "gpu_use": (1,int),# whehter use gpu 1 use 0 not use
-     "scheduler": ("",str)# the lr decay scheduler choices: step, plateau,
+     "scheduler": ("",str),# the lr decay scheduler choices: step, plateau,
+     "lr_print": (0,int)
 }
 ###fixed parameters: for communication related parameter within one node
 fix_para_dict={#"world_size": (1,int),
@@ -87,9 +88,14 @@ def train(args,model,train_loader,optimizer,epoch,device,ntime):
         loss.backward()
         optimizer.step()
         if batch_idx % args.log_interval==0:
-            print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss(per sample): {:.6f}'.format(
+            if args.lr_print==1:
+                lrstr=' lr: '+str(get_lr(optimizer))
+            else:
+                lrstr=''
+                
+            print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss(per sample): {:.6f}{}'.format(
                 epoch,batch_idx*len(data),len(train_loader.dataset),
-                100. * batch_idx*len(data)/len(train_loader.dataset),loss.item()*ntime))
+                100. * batch_idx*len(data)/len(train_loader.dataset),loss.item()*ntime,lrstr))
                 
         trainloss.append(loss.item())
     
@@ -168,6 +174,10 @@ class batch_sampler_block(Sampler):
     
     def __len__(self):
         return self.nblock*self.blocksize
+
+def get_lr(optimizer):#output the lr as scheduler is used
+    for param_group in optimizer.param_groups:
+        return param_group['lr']
 
 def main():
     # Training settings load-in through command line
