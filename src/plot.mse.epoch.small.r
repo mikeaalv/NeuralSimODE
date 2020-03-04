@@ -69,8 +69,8 @@ ggsave(plot=p,file=paste0(dirres,"mse_epoch.pdf"))
 ##end state(epoch) statistics on mse
 endwid=10
 names=unique(msetab[,"names"])
-summtab=as.data.frame(matrix(NA,nrow=length(names),ncol=3))
-colnames(summtab)=c("names","train_mean","test_mean")
+summtab=as.data.frame(matrix(NA,nrow=length(names),ncol=4))
+colnames(summtab)=c("names","train_mean","test_mean","test_min")
 rownames(summtab)=names
 for(namegroup in names){
   subtab=msetab[msetab[,"names"]==namegroup,]
@@ -79,5 +79,6 @@ for(namegroup in names){
   summtab[namegroup,"names"]=namegroup
   summtab[namegroup,"train_mean"]=mean(subtab2[,"train"])
   summtab[namegroup,"test_mean"]=mean(subtab2[,"test"])
+  summtab[namegroup,"test_min"]=mean(sort(subtab[,"test"])[endwid])
 }
 save(summtab,msetablong,file=paste0(dirres,"Rplot_store.RData"))#,p

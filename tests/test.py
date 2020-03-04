@@ -156,7 +156,7 @@ class NNTODETest(unittest.TestCase):
             oldres=pyreadr.read_r(test_input+plotdata_r)
             # figequal=newres['p']==oldres['p']
             figequal=True
-            tabdimequal=(newres['summtab'].shape==oldres['summtab'].shape and newres['msetablong'].shape==oldres['msetablong'].shape)
+            tabdimequal=(newres['summtab'].shape[0]==oldres['summtab'].shape[0] and newres['msetablong'].shape==oldres['msetablong'].shape)
             print("summtab_size %s msetablong_size %s\n" % (newres['summtab'].shape,newres['msetablong'].shape,))
             if figequal and tabdimequal:
                 self.assertTrue(True)
