@@ -93,7 +93,7 @@ def train(args,model,train_loader,optimizer,epoch,device,ntime):
             time_var_ind=list(allind.difference(set(fixinput_ind)))
             initialvec_theta=data[fixinput_ind,:]
             #nsample*(nspec+1)
-            initialvec=[initialvec_theta np.repeat(0.0,nsample_loc)]
+            initialvec=np.cat((initialvec_theta,np.repeat(0.0,nsample_loc)))
             timevarinput=data[time_var_ind,:]
             #nsample*ntime*(ntheta-1-nspec)
             timevarinput=timevarinput.view(nsample_loc,ntime,len(time_var_ind))
@@ -137,7 +137,7 @@ def test(args,model,test_loader,device,ntime):
                 time_var_ind=list(allind.difference(set(fixinput_ind)))
                 initialvec_theta=data[fixinput_ind,:]
                 #nsample*(nspec+1)
-                initialvec=[initialvec_theta np.repeat(0.0,nsample_loc)]
+                initialvec=np.cat((initialvec_theta,np.repeat(0.0,nsample_loc)))
                 timevarinput=data[time_var_ind,:]
                 #nsample*ntime*(ntheta-1-nspec)
                 timevarinput=timevarinput.view(nsample_loc,ntime,len(time_var_ind))
