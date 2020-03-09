@@ -8,7 +8,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 # from .utils import load_state_dict_from_url
 
-__all__=['ResNet_mlp','resnet10_mlp','resnet14_mlp','resnet18_mlp', 'resnet34_mlp', 'resnet50_mlp', 'resnet101_mlp','resnet152_mlp','resnet2x_mlp','wide_resnet50_2_mlp', 'wide_resnet101_2_mlp' 'mlp_mod'] #'resnext50_32x4d', 'resnext101_32x8d',
+__all__=['ResNet_mlp','resnet10_mlp','resnet14_mlp','resnet18_mlp', 'resnet34_mlp', 'resnet50_mlp', 'resnet101_mlp','resnet152_mlp','resnet2x_mlp','wide_resnet50_2_mlp', 'wide_resnet101_2_mlp' 'mlp_mod' 'gru_mlp_rnn' 'gru_rnn' 'diffaddcell_rnn'] #'resnext50_32x4d', 'resnext101_32x8d',
 
 ##currently no convolution layers
 # def conv3x3(in_planes, out_planes, stride=1, groups=1, dilation=1):
@@ -213,6 +213,111 @@ class ResNet_mlp(nn.Module):
         # print("dataparallel checker")
         return x
 
+## a gru network with controled
+class gru_mlp_cell(nn.Module):
+    def __init__(self,input_size,hidden_size,numlayer=0,bias=True,p=0.0):
+        super(GRUCell,self).__init__()
+        self.input_size=input_size
+        self.hidden_size=hidden_size
+        self.x2h=line1d(input_size,3*hidden_size)
+        self.h2h=line1d(hidden_size,3*hidden_size)
+        self.relu=nn.ReLU(inplace=True)
+        self.layer1=self._make_layer(hidden_size,layers[0],p=p)
+        
+        self.reset_parameters()
+    
+    def reset_parameters(self):
+        std=1.0/math.sqrt(self.hidden_size)
+        for w in self.parameters():
+            w.data.uniform_(-std,std)
+    
+    def forward(self,input,hidden):
+        ## a condensed reimplementation(approximation) for effieciency (as used in pytroch c++ and other python implementaion)
+        gate_input=F.dropout(self.x2h(input),training=self.training,p=self.p)#input transformation
+        gate_hidden=F.dropout(self.h2h(hidden),training=self.training,p=self.p)#hidden state transformation
+        gate_input=gate_input.squeeze()
+        gate_hidden=gate_hidden.squeeze()
+        i_r,i_i,i_n=gate_input.chunk(3,1)#To: reset gate,update gate, update h
+        h_r,h_i,h_n=gate_hidden.chunk(3,1)#To: reset gate,update gate,update h
+        resetgate=torch.sigmoid(i_r+h_r)
+        updategate=torch.sigmoid(i_i+h_i)
+        h_n_new=self.layer1(h_n)
+        newh=torch.tanh(i_n+resetgate*h_n_new)
+        hy=newh+inputgate*(hidden-newh)
+        return hy
+        
+    def _make_layer(self,hidden_size,numlayer=0,p=0.0):
+        layers=[]
+        ##block will pass the arguments to the two block types
+        for _ in range(0,numlayer):
+            layers.append(nn.Dropout(line1d(hidden_size,hidden_size),p=self.p))
+            layers.append(self.relu())
+        return nn.Sequential(*layers)
+
+## a new deigned rnn cell
+class diffadd_cell(nn.Module):
+    def __init__(self,input_size,hidden_size,numlayer=0,bias=True,p=0.0):
+        super(diffadd_cell,self).__init__()
+        self.input_size=input_size
+        self.hidden_size=hidden_size
+        self.relu=nn.ReLU(inplace=True)
+        self.layer1=self._make_layer(hidden_size+input_size,layers[0],p=p)
+        self.lltransf=line1d(hidden_size+input_size,hidden_size)
+        self.reset_parameters()
+    
+    def reset_parameters(self):
+        std=1.0/math.sqrt(self.hidden_size)
+        for w in self.parameters():
+            w.data.uniform_(-std,std)
+    
+    def forward(self,input,hidden):
+        hiddeninput=torch.cat(hidden,input)
+        delt=input[-1]
+        hiddeninput=self.layer1(hiddeninput)
+        hidden_d=torch.tanh(F.dropout(lltransf(hiddeninput),training=self.training,p=self.p))
+        hy=hidden+hidden_d*delt
+        return hy
+        
+    def _make_layer(self,hidden_size,numlayer=0,p=0.0):
+        layers=[]
+        ##block will pass the arguments to the two block types
+        for _ in range(1,blocks):
+            layers.append(nn.Dropout(line1d(hidden_size,hidden_size),p=self.p))
+            layers.append(self.relu())
+        return nn.Sequential(*layers)
+
+## the wrapper for rnn model
+class RNN_Model(nn.Module):
+    def __init__(self,input_dim,output_dim,hidden_dim,input_dim_0,numlayer,initialvec,type='gru',bias=True,p=0.0):
+        ##initialvec initial condition and t0
+        super(RNN_Model,self).__init__()
+        self.hidden_dim=hidden_dim
+        output_dim=input_dim
+        if type=='gru':
+            self.rnncell=nn.GRU(input_dim,hidden_dim,1,bias=True,batch_first=True,dropout=p)
+        elif type=='gru_mlp':
+            self.rnncell=gru_mlp_cell(input_dim,hidden_dim,numlayer,p=p)
+        elif type=='diffaddcell':
+            self.rnncell=diffadd_cell(input_dim,hidden_dim,numlayer,p=p)
+        
+        self.inputlay=line1d(input_dim_0,hidden_dim)
+        self.outputlay=line1d(hidden_dim,output_dim)
+        ## initialize hidden state
+        
+    def forward(self,x,initialvec):
+        ##initialvec: input1 [Y(t_0) t_0], initial condition
+        ##x: input2  [theta, t_k, delta t_k], theta and time
+        hiddeninput0=initialvec
+        self.hiddeninput0=hiddeninput0
+        h0=self.inputlay(self.hiddeninput0)
+        outs=[]
+        hn=h0
+        for seq in range(x.size(1)):#time direction
+            hn=self.rnncell(x[:,seq,:],hn)
+            outs.append(self.outputlay(hn))
+        out=outs[-1].squeeze()
+        return out
+
 ### MLP sturcture with control on number of layer and existence of batchnormalization
 ###the whole residule network structure
 class _mlp_mod(nn.Module):
@@ -288,6 +393,22 @@ def _resnet(ninput,num_response,block,layers,pretrained,progress,ncellscale,**kw
     model=ResNet_mlp(block,layers,ninput,num_response,ncellscale=ncellscale,**kwargs)
     if pretrained:
         print("no pretrained model currently")
+    return model
+
+def _rnnnet(ntheta,nspec,num_layer,ncellscale,type,**kwargs):
+    # ninput: #input,
+    # num_response: #response,
+    # block: block structure,
+    # layers: #layers,
+    # pretrained: pretrained or not(not currently used)
+    # progress: progress(not currently used),
+    # ncellscale: scale factor for hidden layer size
+    # **kwargs: to add other parameters
+    input_dim=ntheta+2
+    output_dim=nspec
+    input_dim_0=nspec+1
+    hidden_dim=int(input_dim_0*(ncellscale+1))
+    model=RNN_Model(input_dim,output_dim,hidden_dim,input_dim_0,num_layer,type,**kwargs)
     return model
 
 ### resnet structure examples
@@ -413,3 +534,25 @@ def mlp_mod(ninput,num_response,nlayer,batchnorm_flag=True,p=0.0,ncellscale=1.0,
     kwargs['p']=p
     kwargs['batchnorm_flag']=batchnorm_flag
     return _mlp_mod(nlayer,ninput,num_response,ncellscale,**kwargs)
+
+def gru_mlp_rnn(ntheta,nspec,num_layer,p=0.0,ncellscale=1.0,**kwargs):
+    r"""rnn model adapted from
+    a controled number of layer is added within gru
+    """
+    kwargs['p']=p
+    type='gru_mlp'
+    return _resnet(ntheta,nspec,num_layer,ncellscale,type,**kwargs)
+
+def gru_rnn(ntheta,nspec,num_layer,p=0.0,ncellscale=1.0,**kwargs):
+    r"""the original gru in pytorch
+    """
+    kwargs['p']=p
+    type='gru'
+    return _resnet(ntheta,nspec,num_layer,ncellscale,type,**kwargs)
+
+def gru_rnn(ntheta,nspec,num_layer,p=0.0,ncellscale=1.0,**kwargs):
+    r"""a new designed rnn structure
+    """
+    kwargs['p']=p
+    type='diffaddcell_rnn'
+    return _resnet(ntheta,nspec,num_layer,ncellscale,type,**kwargs)

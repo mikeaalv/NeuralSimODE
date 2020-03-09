@@ -27,7 +27,7 @@ import torch.multiprocessing as mp
 import torch.optim as optim
 import torch.nn.functional as F
 # sys.path.insert(1,'/Users/yuewu/Dropbox (Edison_Lab@UGA)/Projects/Bioinformatics_modeling/nc_model/nnt/model_training/')
-import mlp_struc as models
+import nnt_struc as models
 
 # import the model from model script
 random.seed(1)

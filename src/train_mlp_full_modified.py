@@ -32,10 +32,10 @@ from torch.utils.data.sampler import Sampler
 # sys.path.insert(1,'/Users/yuewu/Dropbox (Edison_Lab@UGA)/Projects/Bioinformatics_modeling/nc_model/nnt/model_training/')
 # import resnet_mlp as models
 # sys.path.insert(1,'/home/mikeaalv/method/nnt_str/nc_model/nnt/model_training/')
-import mlp_struc as models
+import nnt_struc as models
 
 model_names=sorted(name for name in models.__dict__
-    if name.endswith("_mlp") and callable(models.__dict__[name]))
+    if (name.endswith("_mlp") or name.endswith("_rnn")) and callable(models.__dict__[name]))
 # samplewholeselec=list(range(9995,10000))## the whole time series just for testing
 ##default parameters
 args_internal_dict={
@@ -59,7 +59,8 @@ args_internal_dict={
      "p": (0.0,float),
      "gpu_use": (1,int),# whehter use gpu 1 use 0 not use
      "scheduler": ("",str),# the lr decay scheduler choices: step, plateau,
-     "lr_print": (0,int)
+     "lr_print": (0,int),
+     "rnn_struct": (0,int)#whether use rnn structure
 }
 ###fixed parameters: for communication related parameter within one node
 fix_para_dict={#"world_size": (1,int),
@@ -80,8 +81,23 @@ def train(args,model,train_loader,optimizer,epoch,device,ntime):
         #     data=data.cuda(args.gpu,non_blocking=True)
         #
         # target=target.cuda(args.gpu,non_blocking=True)
-        data,target=data.to(device),target.to(device)
-        output=model(data)
+        if args.rnn_struct==0:
+            data,target=data.to(device),target.to(device)
+            output=model(data)
+        else:
+            sizes=data.shape
+            ntheta_real=ntheta-1-nspec
+            nsample_loc=int(sizes[0]/ntime)
+            fixinput_ind=range(ntheta_real,ntheta_real+nspec)
+            allind=range(0,ntheta)
+            time_var_ind=list(allind.difference(set(fixinput_ind)))
+            initialvec_theta=data[fixinput_ind,:]
+            #nsample*(nspec+1)
+            initialvec=[initialvec_theta np.repeat(0.0,nsample_loc)]
+            timevarinput=data[time_var_ind,:]
+            #nsample*ntime*(ntheta-1-nspec)
+            timevarinput=timevarinput.view(nsample_loc,ntime,len(time_var_ind))
+            output=model(timevarinput,initialvec)
         # loss=F.nll_loss(output,target)
         loss=F.mse_loss(output,target,reduction='mean')
         optimizer.zero_grad()
@@ -109,8 +125,23 @@ def test(args,model,test_loader,device,ntime):
             # if args.gpu is not None:
             #     data=data.cuda(args.gpu,non_blocking=True)
             # target=target.cuda(args.gpu,non_blocking=True)
-            data,target=data.to(device),target.to(device)
-            output=model(data)
+            if args.rnn_struct==0:
+                data,target=data.to(device),target.to(device)
+                output=model(data)
+            else:
+                sizes=data.shape
+                ntheta_real=ntheta-1-nspec
+                nsample_loc=int(sizes[0]/ntime)
+                fixinput_ind=range(ntheta_real,ntheta_real+nspec)
+                allind=range(0,ntheta)
+                time_var_ind=list(allind.difference(set(fixinput_ind)))
+                initialvec_theta=data[fixinput_ind,:]
+                #nsample*(nspec+1)
+                initialvec=[initialvec_theta np.repeat(0.0,nsample_loc)]
+                timevarinput=data[time_var_ind,:]
+                #nsample*ntime*(ntheta-1-nspec)
+                timevarinput=timevarinput.view(nsample_loc,ntime,len(time_var_ind))
+                output=model(timevarinput,initialvec)
             # test_loss += F.nll_loss(output,target,reduction='sum').item() # sum up batch loss
             test_loss.append(F.mse_loss(output,target,reduction='mean').item()) # sum
     test_loss_mean=sum(test_loss)/len(test_loss)
@@ -361,6 +392,8 @@ def main_worker(gpu,ngpus_per_node,args):
     ##create model
     if bool(re.search("[rR]es[Nn]et",args.net_struct)):
         model=models.__dict__[args.net_struct](ninput=ntheta,num_response=nspec,p=args.p,ncellscale=args.layersize_ratio)
+    elif args.rnn_struct==1:
+        model=models.__dict__[args.net_struct](ntheta=ntheta,nspec=nspec,num_layer=args.num_layer,ncellscale=args.layersize_ratio,p=args.p)
     else:
         model=models.__dict__[args.net_struct](ninput=ntheta,num_response=nspec,nlayer=args.num_layer,p=args.p,ncellscale=args.layersize_ratio,batchnorm_flag=(args.batchnorm_flag is 'Y'))
     
