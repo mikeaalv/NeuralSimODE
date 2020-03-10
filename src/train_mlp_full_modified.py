@@ -17,6 +17,8 @@ import copy
 import h5py
 from nltk import flatten
 import re
+import matplotlib.pyplot as plt
+from matplotlib.lines import Line2D
 
 import torch
 import torch.nn.parallel
@@ -85,23 +87,35 @@ def train(args,model,train_loader,optimizer,epoch,device,ntime):
             data,target=data.to(device),target.to(device)
             output=model(data)
         else:
+            #reshape data for rnn intput
             sizes=data.shape
-            ntheta_real=ntheta-1-nspec
+            ntheta_real=args.ntheta-1-args.nspec
             nsample_loc=int(sizes[0]/ntime)
-            fixinput_ind=range(ntheta_real,ntheta_real+nspec)
-            allind=range(0,ntheta)
+            timeseq=range(0,sizes[0]-ntime+1,ntime)
+            fixinput_ind=range(ntheta_real,ntheta_real+args.nspec)
+            allind=set(range(0,args.ntheta))
             time_var_ind=list(allind.difference(set(fixinput_ind)))
-            initialvec_theta=data[fixinput_ind,:]
+            initialvec_theta=(data[timeseq,:])[:,fixinput_ind]
             #nsample*(nspec+1)
-            initialvec=np.cat((initialvec_theta,np.repeat(0.0,nsample_loc)))
-            timevarinput=data[time_var_ind,:]
+            zerotime=np.repeat(0.0,nsample_loc).reshape(nsample_loc,-1)
+            initialvec=torch.tensor(np.concatenate((initialvec_theta,zerotime),axis=1)).float()
+            timevarinput=data[:,time_var_ind]
+            timevec=timevarinput[:,-1]
+            deltimevec=timevec[1::]-timevec[0:-1]
+            deltimevec=torch.cat((torch.tensor([0.0]),deltimevec),0)
+            deltimevec[deltimevec<0]=0
+            timevarinput=torch.cat((timevarinput,deltimevec.view(sizes[0],-1)),1)
             #nsample*ntime*(ntheta-1-nspec)
-            timevarinput=timevarinput.view(nsample_loc,ntime,len(time_var_ind))
+            timevarinput=timevarinput.view(nsample_loc,ntime,len(time_var_ind)+1)
+            # print('timevarinput{} initialvec{}'.format(timevarinput.shape,initialvec.shape))
             output=model(timevarinput,initialvec)
+            
         # loss=F.nll_loss(output,target)
+        # print('output{} target{}'.format(output.shape,target.shape))
         loss=F.mse_loss(output,target,reduction='mean')
         optimizer.zero_grad()
         loss.backward()
+        # plot_grad_flow(model.named_parameters())
         optimizer.step()
         if batch_idx % args.log_interval==0:
             if args.lr_print==1:
@@ -129,19 +143,29 @@ def test(args,model,test_loader,device,ntime):
                 data,target=data.to(device),target.to(device)
                 output=model(data)
             else:
+                #reshape data for rnn intput
                 sizes=data.shape
-                ntheta_real=ntheta-1-nspec
+                ntheta_real=args.ntheta-1-args.nspec
                 nsample_loc=int(sizes[0]/ntime)
-                fixinput_ind=range(ntheta_real,ntheta_real+nspec)
-                allind=range(0,ntheta)
+                timeseq=range(0,sizes[0]-ntime+1,ntime)
+                fixinput_ind=range(ntheta_real,ntheta_real+args.nspec)
+                allind=set(range(0,args.ntheta))
                 time_var_ind=list(allind.difference(set(fixinput_ind)))
-                initialvec_theta=data[fixinput_ind,:]
+                initialvec_theta=(data[timeseq,:])[:,fixinput_ind]
                 #nsample*(nspec+1)
-                initialvec=np.cat((initialvec_theta,np.repeat(0.0,nsample_loc)))
-                timevarinput=data[time_var_ind,:]
+                zerotime=np.repeat(0.0,nsample_loc).reshape(nsample_loc,-1)
+                initialvec=torch.tensor(np.concatenate((initialvec_theta,zerotime),axis=1)).float()
+                timevarinput=data[:,time_var_ind]
+                timevec=timevarinput[:,-1]
+                deltimevec=timevec[1::]-timevec[0:-1]
+                deltimevec=torch.cat((torch.tensor([0.0]),deltimevec),0)
+                deltimevec[deltimevec<0]=0
+                timevarinput=torch.cat((timevarinput,deltimevec.view(sizes[0],-1)),1)
                 #nsample*ntime*(ntheta-1-nspec)
-                timevarinput=timevarinput.view(nsample_loc,ntime,len(time_var_ind))
+                timevarinput=timevarinput.view(nsample_loc,ntime,len(time_var_ind)+1)
+                # print('timevarinput{} initialvec{}'.format(timevarinput.shape,initialvec.shape))
                 output=model(timevarinput,initialvec)
+
             # test_loss += F.nll_loss(output,target,reduction='sum').item() # sum up batch loss
             test_loss.append(F.mse_loss(output,target,reduction='mean').item()) # sum
     test_loss_mean=sum(test_loss)/len(test_loss)
@@ -209,6 +233,43 @@ class batch_sampler_block(Sampler):
 def get_lr(optimizer):#output the lr as scheduler is used
     for param_group in optimizer.param_groups:
         return param_group['lr']
+
+def plot_grad_flow(named_parameters):
+    '''From https://discuss.pytorch.org/t/check-gradient-flow-in-network/15063/8
+    
+    Plots the gradients flowing through different layers in the net during training.
+    Can be used for checking for possible gradient vanishing / exploding problems.
+    
+    Usage: Plug this function in Trainer class after loss.backwards() as
+    "plot_grad_flow(self.model.named_parameters())" to visualize the gradient flow
+    
+    used for gradient checking
+    '''
+    ave_grads = []
+    max_grads= []
+    layers = []
+    for n, p in named_parameters:
+        if(p.requires_grad) and ("bias" not in n):
+            layers.append(n)
+            ave_grads.append(p.grad.abs().mean())
+            # print('p {} mean {}'.format(p.shape,p.grad.abs().mean()))
+            max_grads.append(p.grad.abs().max())
+    plt.bar(np.arange(len(max_grads)), max_grads, alpha=0.1, lw=1, color="c")
+    # print('max_grads {}'.format(max_grads.__len__()))
+    plt.bar(np.arange(len(max_grads)), ave_grads, alpha=0.1, lw=1, color="b")
+    plt.hlines(0, 0, len(ave_grads)+1, lw=2, color="k" )
+    plt.xticks(range(0,len(ave_grads), 1), layers, rotation="vertical",fontsize=3)
+    plt.xlim(left=0, right=len(ave_grads))
+    plt.ylim(bottom = -0.001, top=0.02) # zoom in on the lower gradient regions
+    plt.xlabel("Layers")
+    plt.ylabel("average gradient")
+    plt.title("Gradient flow")
+    plt.grid(True)
+    plt.legend([Line2D([0], [0], color="c", lw=4),
+                Line2D([0], [0], color="b", lw=4),
+                Line2D([0], [0], color="k", lw=4)], ['max-gradient', 'mean-gradient', 'zero-gradient'])
+    plt.savefig("test.pdf")
+    sys.exit('plotting')
 
 def main():
     # Training settings load-in through command line
@@ -385,6 +446,9 @@ def main_worker(gpu,ngpus_per_node,args):
         "nspec": (nspec,int),
         "ninnersize": (ninnersize,int)
     }
+    args.nsample=nsample
+    args.ntheta=ntheta
+    args.nspec=nspec
     with open("pickle_dimdata.dat","wb") as f3:
         pickle.dump(dimdict,f3,protocol=4)
     

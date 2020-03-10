@@ -6,6 +6,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import math
 # from .utils import load_state_dict_from_url
 
 __all__=['ResNet_mlp','resnet10_mlp','resnet14_mlp','resnet18_mlp', 'resnet34_mlp', 'resnet50_mlp', 'resnet101_mlp','resnet152_mlp','resnet2x_mlp','wide_resnet50_2_mlp', 'wide_resnet101_2_mlp' 'mlp_mod' 'gru_mlp_rnn' 'gru_rnn' 'diffaddcell_rnn'] #'resnext50_32x4d', 'resnext101_32x8d',
@@ -18,6 +19,9 @@ __all__=['ResNet_mlp','resnet10_mlp','resnet14_mlp','resnet18_mlp', 'resnet34_ml
 
 def line1d(in_features,out_features):
     return nn.Linear(in_features,out_features,bias=False)
+
+def line1dbias(in_features,out_features):
+    return nn.Linear(in_features,out_features,bias=True)
 
 ##the block structure general for resnet
 class BasicBlock(nn.Module):
@@ -216,14 +220,12 @@ class ResNet_mlp(nn.Module):
 ## a gru network with controled
 class gru_mlp_cell(nn.Module):
     def __init__(self,input_size,hidden_size,numlayer=0,bias=True,p=0.0):
-        super(GRUCell,self).__init__()
+        super(gru_mlp_cell,self).__init__()
         self.input_size=input_size
         self.hidden_size=hidden_size
-        self.x2h=line1d(input_size,3*hidden_size)
-        self.h2h=line1d(hidden_size,3*hidden_size)
-        self.relu=nn.ReLU(inplace=True)
-        self.layer1=self._make_layer(hidden_size,layers[0],p=p)
-        
+        self.x2h=line1dbias(input_size,3*hidden_size)
+        self.h2h=line1dbias(hidden_size,3*hidden_size)
+        self.layer1=self._make_layer(hidden_size,numlayer=numlayer,p=p)
         self.reset_parameters()
     
     def reset_parameters(self):
@@ -233,25 +235,28 @@ class gru_mlp_cell(nn.Module):
     
     def forward(self,input,hidden):
         ## a condensed reimplementation(approximation) for effieciency (as used in pytroch c++ and other python implementaion)
-        gate_input=F.dropout(self.x2h(input),training=self.training,p=self.p)#input transformation
-        gate_hidden=F.dropout(self.h2h(hidden),training=self.training,p=self.p)#hidden state transformation
-        gate_input=gate_input.squeeze()
-        gate_hidden=gate_hidden.squeeze()
+        gate_input=self.x2h(input)#input transformation
+        gate_hidden=self.h2h(hidden)#hidden state transformation
+        # print('gate_input{}'.format(gate_input.shape))
+        # gate_input=gate_input.squeeze()
+        # gate_hidden=gate_hidden.squeeze()
         i_r,i_i,i_n=gate_input.chunk(3,1)#To: reset gate,update gate, update h
         h_r,h_i,h_n=gate_hidden.chunk(3,1)#To: reset gate,update gate,update h
         resetgate=torch.sigmoid(i_r+h_r)
         updategate=torch.sigmoid(i_i+h_i)
         h_n_new=self.layer1(h_n)
         newh=torch.tanh(i_n+resetgate*h_n_new)
-        hy=newh+inputgate*(hidden-newh)
+        hy=newh+updategate*(hidden-newh)
+        # print('resetgate{} updategate{} hidden{}'.format(resetgate.shape,updategate.shape,hidden.shape))
         return hy
         
     def _make_layer(self,hidden_size,numlayer=0,p=0.0):
         layers=[]
         ##block will pass the arguments to the two block types
         for _ in range(0,numlayer):
-            layers.append(nn.Dropout(line1d(hidden_size,hidden_size),p=self.p))
-            layers.append(self.relu())
+            layers.append(line1dbias(hidden_size,hidden_size))
+            layers.append(nn.Dropout(p=p))
+            layers.append(nn.ReLU(inplace=True))
         return nn.Sequential(*layers)
 
 ## a new deigned rnn cell
@@ -260,9 +265,8 @@ class diffadd_cell(nn.Module):
         super(diffadd_cell,self).__init__()
         self.input_size=input_size
         self.hidden_size=hidden_size
-        self.relu=nn.ReLU(inplace=True)
-        self.layer1=self._make_layer(hidden_size+input_size,layers[0],p=p)
-        self.lltransf=line1d(hidden_size+input_size,hidden_size)
+        self.layer1=self._make_layer(hidden_size+input_size,numlayer=numlayer,p=p)
+        self.lltransf=line1dbias(hidden_size+input_size,hidden_size)
         self.reset_parameters()
     
     def reset_parameters(self):
@@ -271,37 +275,41 @@ class diffadd_cell(nn.Module):
             w.data.uniform_(-std,std)
     
     def forward(self,input,hidden):
-        hiddeninput=torch.cat(hidden,input)
-        delt=input[-1]
+        # print('hidden {} input {}'.format(hidden.shape,input.shape))
+        hiddeninput=torch.cat((hidden,input),1)
+        sizes=hidden.shape
+        delt=input[:,-1].view(sizes[0],-1)
         hiddeninput=self.layer1(hiddeninput)
-        hidden_d=torch.tanh(F.dropout(lltransf(hiddeninput),training=self.training,p=self.p))
+        hidden_d=torch.tanh(self.lltransf(hiddeninput))
+        # print('hidden {} hidden_d {} delt{}'.format(hidden.shape,hidden_d.shape,delt.shape))
         hy=hidden+hidden_d*delt
         return hy
         
     def _make_layer(self,hidden_size,numlayer=0,p=0.0):
         layers=[]
         ##block will pass the arguments to the two block types
-        for _ in range(1,blocks):
-            layers.append(nn.Dropout(line1d(hidden_size,hidden_size),p=self.p))
-            layers.append(self.relu())
+        for _ in range(1,numlayer):
+            layers.append(line1dbias(hidden_size,hidden_size))
+            layers.append(nn.Dropout(p=p))
+            layers.append(nn.ReLU(inplace=True))
         return nn.Sequential(*layers)
 
 ## the wrapper for rnn model
 class RNN_Model(nn.Module):
-    def __init__(self,input_dim,output_dim,hidden_dim,input_dim_0,numlayer,initialvec,type='gru',bias=True,p=0.0):
+    def __init__(self,input_dim,output_dim,hidden_dim,input_dim_0,numlayer,type='gru',bias=True,p=0.0):
         ##initialvec initial condition and t0
         super(RNN_Model,self).__init__()
         self.hidden_dim=hidden_dim
-        output_dim=input_dim
+        # print('{}\n'.format(type))
         if type=='gru':
-            self.rnncell=nn.GRU(input_dim,hidden_dim,1,bias=True,batch_first=True,dropout=p)
+            self.rnncell=nn.GRUCell(input_dim,hidden_dim,bias=True)
         elif type=='gru_mlp':
             self.rnncell=gru_mlp_cell(input_dim,hidden_dim,numlayer,p=p)
         elif type=='diffaddcell':
             self.rnncell=diffadd_cell(input_dim,hidden_dim,numlayer,p=p)
         
-        self.inputlay=line1d(input_dim_0,hidden_dim)
-        self.outputlay=line1d(hidden_dim,output_dim)
+        self.inputlay=line1dbias(input_dim_0,hidden_dim)
+        self.outputlay=line1dbias(hidden_dim,output_dim)
         ## initialize hidden state
         
     def forward(self,x,initialvec):
@@ -313,10 +321,15 @@ class RNN_Model(nn.Module):
         outs=[]
         hn=h0
         for seq in range(x.size(1)):#time direction
+        
+            # a=x[:,seq,:]
+            # print('{} {}'.format(a.shape,hn.shape))
+            
             hn=self.rnncell(x[:,seq,:],hn)
             outs.append(self.outputlay(hn))
-        out=outs[-1].squeeze()
-        return out
+        # print('outs{}'.format(outs))
+        outtensor=torch.cat(outs)
+        return outtensor
 
 ### MLP sturcture with control on number of layer and existence of batchnormalization
 ###the whole residule network structure
@@ -404,10 +417,11 @@ def _rnnnet(ntheta,nspec,num_layer,ncellscale,type,**kwargs):
     # progress: progress(not currently used),
     # ncellscale: scale factor for hidden layer size
     # **kwargs: to add other parameters
-    input_dim=ntheta+2
+    input_dim=ntheta-nspec+1
     output_dim=nspec
     input_dim_0=nspec+1
     hidden_dim=int(input_dim_0*(ncellscale+1))
+    # print('input_dim {} output_dim {} input_dim_0 {} hidden_dim {}'.format(input_dim,output_dim,input_dim_0,hidden_dim))
     model=RNN_Model(input_dim,output_dim,hidden_dim,input_dim_0,num_layer,type,**kwargs)
     return model
 
@@ -541,18 +555,18 @@ def gru_mlp_rnn(ntheta,nspec,num_layer,p=0.0,ncellscale=1.0,**kwargs):
     """
     kwargs['p']=p
     type='gru_mlp'
-    return _resnet(ntheta,nspec,num_layer,ncellscale,type,**kwargs)
+    return _rnnnet(ntheta,nspec,num_layer,ncellscale,type,**kwargs)
 
 def gru_rnn(ntheta,nspec,num_layer,p=0.0,ncellscale=1.0,**kwargs):
     r"""the original gru in pytorch
     """
     kwargs['p']=p
     type='gru'
-    return _resnet(ntheta,nspec,num_layer,ncellscale,type,**kwargs)
+    return _rnnnet(ntheta,nspec,num_layer,ncellscale,type,**kwargs)
 
-def gru_rnn(ntheta,nspec,num_layer,p=0.0,ncellscale=1.0,**kwargs):
+def diffaddcell_rnn(ntheta,nspec,num_layer,p=0.0,ncellscale=1.0,**kwargs):
     r"""a new designed rnn structure
     """
     kwargs['p']=p
-    type='diffaddcell_rnn'
-    return _resnet(ntheta,nspec,num_layer,ncellscale,type,**kwargs)
+    type='diffaddcell'
+    return _rnnnet(ntheta,nspec,num_layer,ncellscale,type,**kwargs)
