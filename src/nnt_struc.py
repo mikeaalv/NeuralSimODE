@@ -330,7 +330,11 @@ class RNN_Model(nn.Module):
             hn=self.rnncell(x[:,seq,:],hn)
             outs.append(self.outputlay(hn))
         # print('outs{}'.format(outs))
-        outtensor=torch.cat(outs)
+        # outtensor=torch.cat(outs)
+        outtensor=torch.stack(outs)
+        outtensor=torch.transpose(outtensor,0,1).contiguous()
+        size3d=outtensor.shape
+        outtensor=outtensor.view(size3d[0]*size3d[1],-1)
         return outtensor
 
 ### MLP sturcture with control on number of layer and existence of batchnormalization
