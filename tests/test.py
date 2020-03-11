@@ -29,7 +29,7 @@ sys.path.insert(0,prepath+'/output/project/')##use absolute path
 projresdir=projdir+"result/"
 projresdir_1=projresdir+"1/"
 projdatadir=projdir+"data/"
-codefilelist=['mlp_struc.py','plot_model_small.py','plot.mse.epoch.small.r','train_mlp_full_modified.py']
+codefilelist=['nnt_struc.py','plot_model_small.py','plot.mse.epoch.small.r','train_mlp_full_modified.py']
 runinputlist='sparselinearode_new.small.stepwiseadd.mat'
 runoutputlist=['pickle_traindata.dat','pickle_testdata.dat','pickle_inputwrap.dat','pickle_dimdata.dat','model_best.resnetode.tar','model_best_train.resnetode.tar','checkpoint.resnetode.tar','testmodel.1.out']
 runcodelist=['train_mlp_full_modified.py','nnt_struc.py']
@@ -41,7 +41,7 @@ plotsourctab='submitlist.tab'
 rnncheckfold=test_output+'rnn_test/'
 rnncheckfold_data=rnncheckfold+'data/'
 rnncheckfold_run=rnncheckfold+'run/'
-rnn_comp_data=projdatadir+'rnn_res/'
+rnn_comp_data=test_input+'rnn_res/'
 smalval=0.001##for comparing values in such as mse
 
 class NNTODETest(unittest.TestCase):
@@ -284,7 +284,7 @@ class NNTODETest(unittest.TestCase):
             self.assertTrue(False)
     def test_get_lr(self):
         try:
-            import mlp_struc as models
+            import nnt_struc as models
             from train_mlp_full_modified import get_lr
             model_resnet18=models.__dict__['resnet18_mlp'](ninput=10,num_response=10,p=0,ncellscale=1)
             optimizer=optim.SGD(model_resnet18.parameters(),lr=0.1,momentum=0.1)
@@ -295,12 +295,12 @@ class NNTODETest(unittest.TestCase):
         except:
             self.assertTrue(False)
     
-    def test_rnn_run(self):
+    def test_rnn_run(self):#just test the shape of the nnt layers
         try:
             os.chdir(rnncheckfold_run)
-            structlist=['gru_mlp_rnn' 'gru_rnn' 'diffaddcell_rnn']
-            datalist=['checkpoint.gru_mlp.tar' 'checkpoint.gru.tar' 'checkpoint.diffaddcell.tar']
-            commands=['time python3 train_mlp_full_modified.py  --batch-size 42 --test-batch-size 42 --epochs 5 --learning-rate 0.04 --seed 2 --net-struct ' ' --layersize-ratio 0.5 --optimizer adam   --num-layer 1 --inputfile sparselinearode_new.small.stepwiseadd.mat --p 0 --scheduler step --gpu-use 0 --rnn-struct 1 --timetrainlen 21']
+            structlist=['gru_mlp_rnn','gru_rnn','diffaddcell_rnn']
+            datalist=['checkpoint.gru_mlp.tar','checkpoint.gru.tar','checkpoint.diffaddcell.tar']
+            commands=['time python3 train_mlp_full_modified.py  --batch-size 42 --test-batch-size 42 --epochs 5 --learning-rate 0.04 --seed 2 --net-struct ',' --layersize-ratio 0.5 --optimizer adam   --num-layer 1 --inputfile sparselinearode_new.small.stepwiseadd.mat --p 0 --scheduler step --gpu-use 0 --rnn-struct 1 --timetrainlen 21 &> output']
             shapeequal=True
             for struc_i in range(0,len(structlist)):
                 struc=structlist[struc_i]
