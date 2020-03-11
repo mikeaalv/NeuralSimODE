@@ -32,12 +32,16 @@ projdatadir=projdir+"data/"
 codefilelist=['mlp_struc.py','plot_model_small.py','plot.mse.epoch.small.r','train_mlp_full_modified.py']
 runinputlist='sparselinearode_new.small.stepwiseadd.mat'
 runoutputlist=['pickle_traindata.dat','pickle_testdata.dat','pickle_inputwrap.dat','pickle_dimdata.dat','model_best.resnetode.tar','model_best_train.resnetode.tar','checkpoint.resnetode.tar','testmodel.1.out']
-runcodelist=['train_mlp_full_modified.py','mlp_struc.py']
+runcodelist=['train_mlp_full_modified.py','nnt_struc.py']
 runcodetest='test.sh'
 # plotdata_py='plotsave.dat'
 plotdata_r='Rplot_store.RData'
 tempdata_py='datatemp.dat'
 plotsourctab='submitlist.tab'
+rnncheckfold=test_output+'rnn_test/'
+rnncheckfold_data=rnncheckfold+'data/'
+rnncheckfold_run=rnncheckfold+'run/'
+rnn_comp_data=projdatadir+'rnn_res/'
 smalval=0.001##for comparing values in such as mse
 
 class NNTODETest(unittest.TestCase):
@@ -61,6 +65,13 @@ class NNTODETest(unittest.TestCase):
                 shutil.copyfile(sourcodedir+codefile,projdir+codefile)
             shutil.copyfile(test_input+plotsourctab,projdir+plotsourctab)
             shutil.copyfile(test_input+runinputlist,projdatadir+runinputlist)
+            ##for add rnn structure test folder
+            os.makedirs(rnncheckfold,exist_ok=True)
+            os.makedirs(rnncheckfold_data,exist_ok=True)
+            os.makedirs(rnncheckfold_run,exist_ok=True)
+            shutil.copyfile(test_input+runinputlist,rnncheckfold_data+runinputlist)
+            for codefile in runcodelist:
+                shutil.copyfile(sourcodedir+codefile,rnncheckfold_run+codefile)
         except:
             self.assertTrue(False)
         
@@ -248,7 +259,7 @@ class NNTODETest(unittest.TestCase):
 
     def test_resnet2x(self):
         try:
-            import mlp_struc as models
+            import nnt_struc as models
             ##resnet 18
             model_resnet18=models.__dict__['resnet18_mlp'](ninput=10,num_response=10,p=0,ncellscale=1)
             model_resnet18_x=models.__dict__['resnet2x_mlp'](ninput=10,num_response=10,p=0,ncellscale=1,x=9)
@@ -277,13 +288,38 @@ class NNTODETest(unittest.TestCase):
             from train_mlp_full_modified import get_lr
             model_resnet18=models.__dict__['resnet18_mlp'](ninput=10,num_response=10,p=0,ncellscale=1)
             optimizer=optim.SGD(model_resnet18.parameters(),lr=0.1,momentum=0.1)
-            if(get_lr(optimizer)==0.1):
+            if get_lr(optimizer)==0.1:
                 self.assertTrue(True)
             else:
                 self.assertTrue(False)
         except:
             self.assertTrue(False)
-        
+    
+    def test_rnn_run(self):
+        try:
+            os.chdir(rnncheckfold_run)
+            structlist=['gru_mlp_rnn' 'gru_rnn' 'diffaddcell_rnn']
+            datalist=['checkpoint.gru_mlp.tar' 'checkpoint.gru.tar' 'checkpoint.diffaddcell.tar']
+            commands=['time python3 train_mlp_full_modified.py  --batch-size 42 --test-batch-size 42 --epochs 5 --learning-rate 0.04 --seed 2 --net-struct ' ' --layersize-ratio 0.5 --optimizer adam   --num-layer 1 --inputfile sparselinearode_new.small.stepwiseadd.mat --p 0 --scheduler step --gpu-use 0 --rnn-struct 1 --timetrainlen 21']
+            shapeequal=True
+            for struc_i in range(0,len(structlist)):
+                struc=structlist[struc_i]
+                predata=datalist[struc_i]
+                os.system(commands[0]+struc+commands[1])
+                device=torch.device('cpu')
+                currstore=torch.load(rnncheckfold_run+runoutputlist[6],map_location=device)
+                prestore=torch.load(rnn_comp_data+predata,map_location=device)
+                curr_state_dict=currstore['state_dict']
+                pre_state_dict=prestore['state_dict']
+                for layer in curr_state_dict.keys():
+                    shapeequal=shapeequal and (curr_state_dict[layer].shape==pre_state_dict[layer].shape)
+            if shapeequal:
+                self.assertTrue(True)
+            else:
+                self.assertTrue(False)
+        except:
+            self.assertTrue(False)
+    
     def test_clean(self):
         try:
             for filename in os.listdir(test_output):
