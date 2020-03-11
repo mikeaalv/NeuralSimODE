@@ -226,7 +226,7 @@ class gru_mlp_cell(nn.Module):
         self.x2h=line1dbias(input_size,3*hidden_size)
         self.h2h=line1dbias(hidden_size,3*hidden_size)
         self.layer1=self._make_layer(hidden_size,numlayer=numlayer,p=p)
-        self.reset_parameters()
+        # self.reset_parameters()
     
     def reset_parameters(self):
         std=1.0/math.sqrt(self.hidden_size)
@@ -267,7 +267,7 @@ class diffadd_cell(nn.Module):
         self.hidden_size=hidden_size
         self.layer1=self._make_layer(hidden_size+input_size,numlayer=numlayer,p=p)
         self.lltransf=line1dbias(hidden_size+input_size,hidden_size)
-        self.reset_parameters()
+        # self.reset_parameters()
     
     def reset_parameters(self):
         std=1.0/math.sqrt(self.hidden_size)
@@ -310,7 +310,9 @@ class RNN_Model(nn.Module):
         
         self.inputlay=line1dbias(input_dim_0,hidden_dim)
         self.outputlay=line1dbias(hidden_dim,output_dim)
-        ## initialize hidden state
+        for m in self.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.kaiming_normal_(m.weight,mode='fan_out')
         
     def forward(self,x,initialvec):
         ##initialvec: input1 [Y(t_0) t_0], initial condition
