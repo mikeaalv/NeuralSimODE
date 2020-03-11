@@ -54,6 +54,10 @@ for(irow in seqdir){
   if("addon"%in%colnam && str_detect(string=infor[,"addon"],pattern="^scheduler")){
     scheduler=str_replace_all(string=infor[,"addon"],pattern="^scheduler\\_",replacement="")
   }
+  rnnadd=""
+  if(str_detect(string=infor[,"net_struct"],pattern="\\_rnn")){
+    rnnadd="--rnn-struct 1"
+  }
   lines=readLines(shellscript)
   chline_ind=str_which(string=lines,pattern="^time")
   lineend=str_extract_all(string=lines[chline_ind],pattern="\\w+>>.*$")[[1]]
@@ -72,6 +76,7 @@ for(irow in seqdir){
               "--p",dropout_rate,
               "--scheduler",scheduler,
               "--lr-print 1",
+              rnnadd,
               lineend,
               sep=" "
             )
