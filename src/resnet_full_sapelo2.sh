@@ -1,7 +1,7 @@
 #PBS -S /bin/bash
 #PBS -q gpu_q
 #PBS -N resnet_model
-#PBS -l nodes=1:ppn=3:gpus=2:default
+#PBS -l nodes=1:ppn=12:gpus=1:P100:default
 #PBS -l walltime=200:00:00
 #PBS -l mem=60gb
 #PBS -M yuewu_mike@163.com
