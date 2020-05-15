@@ -108,6 +108,7 @@ def train(args,model,train_loader,optimizer,epoch,device,ntime):
             #nsample*ntime*(ntheta-1-nspec)
             timevarinput=timevarinput.view(nsample_loc,ntime,len(time_var_ind)+1)
             # print('timevarinput{} initialvec{}'.format(timevarinput.shape,initialvec.shape))
+            timevarinput,initialvec,target=timevarinput.to(device),initialvec.to(device),target.to(device)
             output=model(timevarinput,initialvec)
             
         # loss=F.nll_loss(output,target)
@@ -164,6 +165,7 @@ def test(args,model,test_loader,device,ntime):
                 #nsample*ntime*(ntheta-1-nspec)
                 timevarinput=timevarinput.view(nsample_loc,ntime,len(time_var_ind)+1)
                 # print('timevarinput{} initialvec{}'.format(timevarinput.shape,initialvec.shape))
+                timevarinput,initialvec,target=timevarinput.to(device),initialvec.to(device),target.to(device)
                 output=model(timevarinput,initialvec)
 
             # test_loss += F.nll_loss(output,target,reduction='sum').item() # sum up batch loss
