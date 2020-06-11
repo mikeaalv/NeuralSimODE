@@ -17,4 +17,6 @@ source activate /home/yw44924/methods/pytorch_env
 
 time python train_mlp_full.py --batch-size 50000 --test-batch-size 50000 --epochs 100 --learning-rate 0.01 --seed 1 --net-struct 'resnet18_mlp' 1>> ./testmodel.${PBS_JOBID}.out 2>> ./testmodel.${PBS_JOBID}.err
 
+qstat -f ${PBS_JOBID} | grep 'resources_used.mem'
+
 source deactivate
