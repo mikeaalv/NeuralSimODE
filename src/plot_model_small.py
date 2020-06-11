@@ -43,11 +43,12 @@ infortab=infortab.astype({"batch_size": int,"test_batch_size": int})
 # samplewholeselec=list(range(9995,10000))
 # sampseletrainind=[0,4999,7999]
 # sampseletestind=[0,499,999,1499,1999]
+
 ## number of samples from each group
-trainsamplen=2
-testsamplen=2
+samplelen={"train": (2), "validate": (2), "test": (2)}
 specind=[0,1]#[0,1,2,3,4,5]#[0,3,5,7,9]
-ntime=21#101
+ntime=101#101
+separation=['train','validate','test']
 # testselec=samplecombselec+samplewholeselec
 f=h5py.File(inputdir+"data/sparselinearode_new.small.stepwiseadd.mat",'r')
 data=f.get('inputstore')
@@ -73,23 +74,21 @@ for rowi in rowiseq:
     # test_in_ind=inputwrap["test_in_ind"]
     nsample=dimdict["nsample"][0]
     sampleind=set(range(0,nsample))
-    samplevectrain=inputwrap["samplevectrain"]
-    samplevectest=inputwrap["samplevectest"]
-    trainstep=math.floor(np.unique(samplevectrain).size/trainsamplen)
-    teststep=math.floor(np.unique(samplevectest).size/testsamplen)
-    sampseletrainindind=[0+i*trainstep for i in range(trainsamplen)]
-    sampseletestindind=[0+i*teststep for i in range(testsamplen)]
-    # sampseletrainind=samplevectrain[sampseletrainindind]
-    # sampseletestind=samplevectest[sampseletestindind]
-    # testind=np.sort(np.array(list(sampleind.difference(set(trainind)))))
-    testselec=np.append(np.unique(samplevectrain)[sampseletrainindind],np.unique(samplevectest)[sampseletestindind])
-    labels=["train"]*len(sampseletrainindind) + ["test"]*len(sampseletestindind)
+    samplevec_separa=inputwrap["samplevec_separa"]
+    samplestep={x: math.floor(np.unique(samplevec_separa[x]).size/samplelen[x]) for x in separation}
+    sampsele_ind_ind={x: [0+i*samplestep[x] for i in range(samplelen[x])] for x in separation}
+    testselec=np.array([])
+    labels=[]
+    for x in separation:
+        testselec=np.append(testselec,np.unique(samplevec_separa[x])[sampsele_ind_ind[x]])
+        labels=labels+x*len(sampsele_ind_ind[x])
+    
     fig,ax=plt.subplots()
     for eleind, elesampe in enumerate(testselec):
         label=labels[eleind]
         showele=np.sort(np.where(np.isin(samplevec,elesampe))[0])## for each block time is in order
         Xtensortest=torch.Tensor(Xvarnorm[list(showele),:])
-        Xvartest=torch.Tensor(Xvar[list(showele),:])
+        Xvartest=torch.Tensor(Xvar[list(showele),:])##only for real time value used later
         Resptensortest=torch.Tensor(ResponseVar[list(showele),:])
         testdataset=utils.TensorDataset(Xtensortest,Resptensortest)
         train_sampler=None
@@ -100,6 +99,7 @@ for rowi in rowiseq:
             model=models.__dict__[args.net_struct](ninput=dimdict["ntheta"][0],num_response=dimdict["nspec"][0],p=args.p,ncellscale=args.layersize_ratio)
         else:
             model=models.__dict__[args.net_struct](ninput=dimdict["ntheta"][0],num_response=dimdict["nspec"][0],nlayer=args.num_layer,p=args.p,ncellscale=args.layersize_ratio,batchnorm_flag=(args.batchnorm_flag is 'Y'))
+        
         model=torch.nn.DataParallel(model)
         model.load_state_dict(loaddic['state_dict'])
         model.eval()
@@ -155,7 +155,7 @@ for rowi in rowiseq:
     Resptensortest=torch.Tensor(ResponseVar)
     testdataset=utils.TensorDataset(Xtensortest,Resptensortest)
     # train_sampler=None
-    test_sampler=batch_sampler_block(testdataset,samplevec,nblock=trainsamplen)
+    test_sampler=batch_sampler_block(testdataset,samplevec,nblock=samplelen["train"])
     testdataloader=utils.DataLoader(testdataset,shuffle=False,num_workers=args.workers,pin_memory=True,batch_sampler=test_sampler)
     ninnersize=int(args.layersize_ratio*dimdict["ntheta"][0])
     if bool(re.search("[rR]es[Nn]et",args.net_struct)):
@@ -197,7 +197,7 @@ for rowi in rowiseq:
 # with open("plotsave.dat","wb") as f1:
 #     pickle.dump(plotcollect,f1,protocol=4)
 
-tmpsave={'data': data, 'output': output, 'target': target, 'ninnersize': ninnersize}
-with open("datatemp.dat","wb") as f1:
-    pickle.dump(tmpsave,f1,protocol=4)
+# tmpsave={'data': data, 'output': output, 'target': target, 'ninnersize': ninnersize}
+# with open("datatemp.dat","wb") as f1:
+#     pickle.dump(tmpsave,f1,protocol=4)
 ##extrapolation
