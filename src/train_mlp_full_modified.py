@@ -74,7 +74,7 @@ fix_para_dict={#"world_size": (1,int),
                "workers": (1,int)
 }
 inputdir="../data/"
-def train(args,model,train_loader,optimizer,epoch,device,ntime):
+def train(args,model,train_loader,optimizer,epoch,device,ntime,scheduler):
     model.train()
     trainloss=[]
     for batch_idx, (data, target) in enumerate(train_loader):
@@ -118,6 +118,9 @@ def train(args,model,train_loader,optimizer,epoch,device,ntime):
         loss.backward()
         # plot_grad_flow(model.named_parameters())
         optimizer.step()
+        if args.scheduler=='cycliclr':#clclicLR need to make steps for each mini-batch
+            scheduler.step()
+        
         if batch_idx % args.log_interval==0:
             if args.lr_print==1:
                 lrstr=' lr: '+str(get_lr(optimizer))
@@ -493,16 +496,18 @@ def main_worker(gpu,ngpus_per_node,args):
         optimizer=optim.SGD(model.parameters(),lr=args.learning_rate,momentum=args.momentum,nesterov=True)
     
     if args.scheduler=='step':
-        scheduler=lr_scheduler.StepLR(optimizer,step_size=200,gamma=0.1)
+        scheduler=lr_scheduler.StepLR(optimizer,step_size=200,gamma=0.5)
     elif args.scheduler=='plateau':
-        scheduler=lr_scheduler.ReduceLROnPlateau(optimizer,'min',factor=0.1)
+        scheduler=lr_scheduler.ReduceLROnPlateau(optimizer,'min',factor=0.5)
+    elif args.scheduler=='cycliclr':
+        scheduler=lr_scheduler.CyclicLR(optimizer,args.learning_rate/100,args.learning_rate,step_size_up=1000)
     else:
         scheduler=None
     
     cudnn.benchmark=True
     ##model training
     for epoch in range(1,args.epochs+1):
-        acctr=train(args,model,traindataloader,optimizer,epoch,device,ntime)
+        acctr=train(args,model,traindataloader,optimizer,epoch,device,ntime,scheduler)
         acc1=test(args,model,testdataloader,device,ntime)
         # test(args,model,traindataloader,device,ntime) # to record the performance on training sample with model.eval()
         if scheduler is not None:
