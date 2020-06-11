@@ -30,18 +30,15 @@ from torch.optim import lr_scheduler
 import torch.nn.functional as F
 from torch.utils.data.sampler import Sampler
 
-# sys.path.insert(1,'/Users/yuewu/Dropbox (Edison_Lab@UGA)/Projects/Bioinformatics_modeling/nc_model/nnt/model_training/')
-# import resnet_mlp as models
-# sys.path.insert(1,'/home/mikeaalv/method/nnt_str/nc_model/nnt/model_training/')
+# sys.path.insert(1,'PATH')
 import nnt_struc as models
 
 model_names=sorted(name for name in models.__dict__
     if (name.endswith("_mlp") or name.endswith("_rnn")) and callable(models.__dict__[name]))
-# samplewholeselec=list(range(9995,10000))## the whole time series just for testing
 ##default parameters
 args_internal_dict={
     "batch_size": (50000,int),
-    "test_ratio": (0.2,float), # ratio of sample for test in each epoch
+    "test_validate_ratio": (0.2,float), # ratio of sample for test&validation in each epoch (they will be devided by half)
     "test_batch_size": (50000,int),
     "epochs": (10,int),
     "learning_rate": (0.01,float),
@@ -52,16 +49,17 @@ args_internal_dict={
     "net_struct": ("resnet18_mlp",str),
     "layersize_ratio": (1.0,float),#use the input vector size to calcualte hidden layer size
     "optimizer": ("adam",str),##adam
-    "normalize_flag": ("Y",str),#whether the input data in X are normalized Y normalized N not
-    "batchnorm_flag": ("Y",str),# whether batch normalization is used Y yes N no. Not working for resnet
+    "normalize_flag": ("Y",str),#whether the input data in X are normalized (Y) or not (N)
+    "batchnorm_flag": ("Y",str),# whether batch normalization is used (Y) or not (N). Not working for resnet
     "num_layer": (0,int),#number of layer, not work for resnet
     "timetrainlen": (101,int), #the length of time-series to use in training
     "inputfile": ("sparselinearode_new.small.stepwiseadd.mat",str),## the file name of input data
-     "p": (0.0,float),
-     "gpu_use": (1,int),# whehter use gpu 1 use 0 not use
-     "scheduler": ("",str),# the lr decay scheduler choices: step, plateau,
+     "p": (0.0,float),#probability used in dropout
+     "gpu_use": (1,int),# whehter use gpu (1) or not (0)
+     "scheduler": ("",str),# the lr decay scheduler choices: step, plateau, cycliclr
      "lr_print": (0,int),
-     "rnn_struct": (0,int)#whether use rnn structure
+     "rnn_struct": (0,int),#whether use rnn structure
+     "sampler": ("block",str)##sampler to use. "block" sampler or "individual" sampler
 }
 ###fixed parameters: for communication related parameter within one node
 fix_para_dict={#"world_size": (1,int),
@@ -82,6 +80,12 @@ def train(args,model,train_loader,optimizer,epoch,device,ntime,scheduler):
         #     data=data.cuda(args.gpu,non_blocking=True)
         #
         # target=target.cuda(args.gpu,non_blocking=True)
+        
+        # Transform ******
+        # if: # linear combination transform
+        #
+        # if: # time shift transform
+            
         if args.rnn_struct==0:
             data,target=data.to(device),target.to(device)
             output=model(data)
@@ -117,8 +121,6 @@ def train(args,model,train_loader,optimizer,epoch,device,ntime,scheduler):
         loss.backward()
         # plot_grad_flow(model.named_parameters())
         optimizer.step()
-        if args.scheduler=='cycliclr':#clclicLR need to make steps for each mini-batch
-            scheduler.step()
         
         if batch_idx % args.log_interval==0:
             if args.lr_print==1:
@@ -129,7 +131,10 @@ def train(args,model,train_loader,optimizer,epoch,device,ntime,scheduler):
             print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss(per sample): {:.6f}{}'.format(
                 epoch,batch_idx*len(data),len(train_loader.dataset),
                 100. * batch_idx*len(data)/len(train_loader.dataset),loss.item()*ntime,lrstr))
-                
+        
+        if args.scheduler=='cycliclr':#clclicLR need to make steps for each mini-batch
+            scheduler.step()
+        
         trainloss.append(loss.item())
     
     return (sum(trainloss)/len(trainloss))*ntime
@@ -249,32 +254,42 @@ def plot_grad_flow(named_parameters):
     
     used for gradient checking
     '''
-    ave_grads = []
-    max_grads= []
-    layers = []
+    ave_grads=[]
+    max_grads=[]
+    layers=[]
     for n, p in named_parameters:
         if(p.requires_grad) and ("bias" not in n):
             layers.append(n)
             ave_grads.append(p.grad.abs().mean())
             # print('p {} mean {}'.format(p.shape,p.grad.abs().mean()))
             max_grads.append(p.grad.abs().max())
-    plt.bar(np.arange(len(max_grads)), max_grads, alpha=0.1, lw=1, color="c")
+    plt.bar(np.arange(len(max_grads)),max_grads,alpha=0.1,lw=1,color="c")
     # print('max_grads {}'.format(max_grads.__len__()))
-    plt.bar(np.arange(len(max_grads)), ave_grads, alpha=0.1, lw=1, color="b")
-    plt.hlines(0, 0, len(ave_grads)+1, lw=2, color="k" )
-    plt.xticks(range(0,len(ave_grads), 1), layers, rotation="vertical",fontsize=3)
-    plt.xlim(left=0, right=len(ave_grads))
-    plt.ylim(bottom = -0.001, top=0.02) # zoom in on the lower gradient regions
+    plt.bar(np.arange(len(max_grads)),ave_grads,alpha=0.1,lw=1,color="b")
+    plt.hlines(0,0,len(ave_grads)+1,lw=2,color="k")
+    plt.xticks(range(0,len(ave_grads),1),layers,rotation="vertical",fontsize=3)
+    plt.xlim(left=0,right=len(ave_grads))
+    plt.ylim(bottom= -0.001,top=0.02) # zoom in on the lower gradient regions
     plt.xlabel("Layers")
     plt.ylabel("average gradient")
     plt.title("Gradient flow")
     plt.grid(True)
-    plt.legend([Line2D([0], [0], color="c", lw=4),
-                Line2D([0], [0], color="b", lw=4),
-                Line2D([0], [0], color="k", lw=4)], ['max-gradient', 'mean-gradient', 'zero-gradient'])
+    plt.legend([Line2D([0],[0],color="c",lw=4),
+                Line2D([0],[0],color="b",lw=4),
+                Line2D([0],[0],color="k",lw=4)],['max-gradient','mean-gradient','zero-gradient'])
     plt.savefig("test.pdf")
     sys.exit('plotting')
 
+def trans_lin_comb():
+    """
+    Data augmentation: produce new training sample
+    doesn't follow the format of transformer as the function takes two sample and produce one sample
+    """
+def trans_time_shift():
+    """
+    Data augmentation: produce time shift sample
+    doesn't follow the format of transformer
+    """
 def main():
     # Training settings load-in through command line
     parser=argparse.ArgumentParser(description='PyTorch Example')
@@ -339,55 +354,54 @@ def main_worker(gpu,ngpus_per_node,args):
     f.close()
     ntime=args.timetrainlen
     # ResponseVarnorm=(ResponseVar-ResponseVar.mean(axis=0))/ResponseVar.std(axis=0)
-    ResponseVarnorm=ResponseVar## the response variable was originally scale by omega {scaling} but not centered. and not more normalization will be done
+    ResponseVarnorm=ResponseVar## the response variable was originally scale by omega {scaling} but not centered. and no more normalization will be done
     ##separation of train and test set
     nsample=(Xvar.shape)[0]
     ntheta=(Xvar.shape)[1]
     nspec=(ResponseVarnorm.shape)[1]
     simusamplevec=np.unique(samplevec)
-    ##test block number {each block is composed for multiple samples}
-    numsamptest=math.floor((simusamplevec.__len__())*args.test_ratio)
-    # testsize=numsamptest*ntimetotal##test sample number
+    separation=['train','validate','test']
+    numsamptest_validate=math.floor((simusamplevec.__len__())*args.test_ratio/2)
     sampleind=set(range(0,nsample))
     simusampeind=set(range(0,nthetaset))
-    ## a preset whole time range for just testing
-    # samplewholeselec=np.sort(-np.unique(samplevec))[0:5]
-    simusamplevec=random.sample(set(simusampeind),numsamptest)
-    ##index or training and testing data
-    testind=np.sort(np.where(np.isin(samplevec,simusamplevec)))[0]
-    trainind=np.sort(np.array(list(sampleind.difference(set(testind)))))
-    # simusamplevec=random.sample(set(sampleind)-set(testaddon),testsize-testaddon.__len__())
-    # testaddon=np.where(np.isin(simusamplevec,samplewholeselec))[0]
-    # testaddon=np.where(np.isin(samplevec,samplewholeselec))[0]
-    # testrand=random.sample(set(sampleind)-set(testaddon),testsize-testaddon.__len__())
-    # testind=set(testrand)|set(testaddon)
-    ntrainset=nthetaset-numsamptest
-    ntestset=numsamptest
-    ##training block index (time range)
-    traintimeind=np.tile(np.concatenate((np.repeat(1,ntime),np.repeat(0,ntimetotal-ntime))),ntrainset)
-    testtimeind=np.tile(np.concatenate((np.repeat(1,ntime),np.repeat(0,ntimetotal-ntime))),ntestset)
-    train_in_ind=trainind[traintimeind==1]
-    test_in_ind=testind[testtimeind==1]
-    train_extr_ind=trainind[traintimeind==0]
-    test_extr_ind=testind[testtimeind==0]
-    ##train and test block ind
-    samplevectrain=samplevec[train_in_ind]
-    samplevectest=samplevec[test_in_ind]
-    
-    Xvartrain=Xvar[list(trainind),:]
-    Xvartest=Xvar[list(testind),:]
+    ## a preset whole time range for test, validation (groups)
+    simusamplevec_test=random.sample(simusampeind,numsamptest_validate)
+    simusamplevec_validate=random.sample(simusampeind.difference(set(simusamplevec_test)),numsamptest_validate)
+    ##index of training, testing, and validation
+    testind=np.sort(np.where(np.isin(samplevec,simusamplevec_test)))[0]
+    validateind=np.sort(np.where(np.isin(samplevec,simusamplevec_validate)))[0]
+    testvalidte_ind_union=set(testind)
+    testvalidte_ind_union=testvalidte_ind_union.union(set(validateind))
+    trainind=np.sort(np.array(list(sampleind.difference(testvalidte_ind_union))))#index for training set
+    ntrainset=nthetaset-numsamptest_validate*2
+    sizeset={"train": (ntrainset), "validate": (numsamptest_validate), "test": (numsamptest_validate)}
+    ind_separa={"train": (trainind), "validate": (validateind), "test": (testind)}
+    ##training block index (time range) keep in the training time block
+    timeind={x: np.tile(np.concatenate((np.repeat(1,ntime),np.repeat(0,ntimetotal-ntime))),sizeset[x]) for x in separation}
+    time_in_ind={}
+    time_extr_ind={}
+    for x in separation:
+        tempind=ind_separa[x]
+        time_in_ind[x]=tempind[timeind[x]==1]
+        time_extr_ind[x]=tempind[timeind[x]==0]
+
+    ##train validate test "block" ind
+    samplevec_separa={x: samplevec[time_in_ind[x]] for x in separation}
+    Xvar_separa={x: Xvar[list(ind_separa[x]),:] for x in separation}
     Xvarnorm=np.empty_like(Xvar)
+    Xvar_norm_separa={}
     if args.normalize_flag is 'Y':
         ##the normalization if exist should be after separation of training and testing data to prevent leaking
         ##normalization (X-mean)/sd
         ##normalization include time. Train and test model need to have at least same range or same mean&sd for time
-        Xvartrain_norm=(Xvartrain-Xvartrain.mean(axis=0))/Xvartrain.std(axis=0)
-        Xvartest_norm=(Xvartest-Xvartest.mean(axis=0))/Xvartest.std(axis=0)
-        Xvarnorm[list(trainind),:]=np.copy(Xvartrain_norm)
-        Xvarnorm[list(testind),:]=np.copy(Xvartest_norm)
+        for x in separation:
+            Xvartemp=Xvar_separa[x]
+            temp_norm_mat=(Xvartemp-Xvartemp.mean(axis=0))/Xvartemp.std(axis=0)
+            Xvar_norm_separa[x]=temp_norm_mat
+            Xvarnorm[list(ind_separa[x]),:]=np.copy(temp_norm_mat)
+        
     else:
-        Xvartrain_norm=Xvartrain
-        Xvartest_norm=Xvartest
+        Xvar_norm_separa={x: Xvar_separa[x] for x in separation}
         Xvarnorm=np.copy(Xvar)
     
     #samplevecXX repeat id vector, XXind index vector
@@ -395,54 +409,44 @@ def main_worker(gpu,ngpus_per_node,args):
         "ResponseVar": (ResponseVar),
         "trainind": (trainind),
         "testind": (testind),
-        "train_in_ind": (train_in_ind),
-        "test_in_ind": (test_in_ind),
-        "train_extr_ind": (train_extr_ind),
-        "test_extr_ind": (test_extr_ind),
-        # "testrand": (testrand),
-        # "testaddon": (testaddon),
+        "validateind": (validateind),
+        "ind_separa": (ind_separa),
+        "time_in_ind": (time_in_ind),
+        "time_extr_ind": (time_extr_ind),
         "samplevec": (samplevec),
         # "samplewholeselec": (samplewholeselec),
-        "samplevectrain": (samplevectrain),
-        "samplevectest": (samplevectest),
+        "samplevec_separa": (samplevec_separa),
         # "Xvarmean": (Xvarmean),## these two value: Xvarmean, Xvarstd can be used for "new" test data not used in the original normalization
         # "Xvarstd": (Xvarstd),
-        "train_extr_ind": (train_extr_ind), ## the extrapolation point index on testing set
-        "test_extr_ind": (test_extr_ind), ## the extrapolation point index on training set
         "inputfile": (inputfile),
         "ngpus_per_node": (ngpus_per_node),## number of gpus
-        "numsamptest": (numsamptest),#number of testing samples
-        "traintimeind": (traintimeind),
-        "testtimeind": (testtimeind)
+        "numsamptest_validate": (numsamptest_validate),#number of testing samples
+        "timeind": (timeind)
     }
     with open("pickle_inputwrap.dat","wb") as f1:
         pickle.dump(inputwrap,f1,protocol=4)##protocol=4 if there is error: cannot serialize a bytes object larger than 4 GiB
     
-    Xtensortrain=torch.Tensor(Xvarnorm[list(train_in_ind),:])
-    Resptensortrain=torch.Tensor(ResponseVar[list(train_in_ind),:])
-    Xtensortest=torch.Tensor(Xvarnorm[list(test_in_ind),:])
-    Resptensortest=torch.Tensor(ResponseVar[list(test_in_ind),:])
-    traindataset=utils.TensorDataset(Xtensortrain,Resptensortrain)
-    testdataset=utils.TensorDataset(Xtensortest,Resptensortest)
+    Xtensor={x: torch.Tensor(Xvarnorm[list(time_in_ind[x]),:]) for x in separation}
+    Resptensor={x: torch.Tensor(ResponseVar[list(time_in_ind[x]),:]) for x in separation}
+    Dataset={x: utils.TensorDataset(Xtensor[x],Resptensor[x]) for x in separation}
     # train_sampler=torch.utils.data.distributed.DistributedSampler(traindataset)
-    nblocktrain=int(args.batch_size/ntime)
+    nblock=int(args.batch_size/ntime)
     # nblocktest=int(args.test_batch_size/ntime)
-    train_sampler=batch_sampler_block(traindataset,samplevectrain,nblock=nblocktrain)
-    test_sampler=batch_sampler_block(testdataset,samplevectest,nblock=nblocktrain)
     # traindataloader=utils.DataLoader(traindataset,batch_size=args.batch_size,
     #     shuffle=(train_sampler is None),num_workers=args.workers,pin_memory=True,sampler=train_sampler)
     #
     # testdataloader=utils.DataLoader(testdataset,batch_size=args.test_batch_size,
     #     shuffle=False,num_workers=args.workers,pin_memory=True,sampler=test_sampler)
-    traindataloader=utils.DataLoader(traindataset,num_workers=args.workers,pin_memory=True,batch_sampler=train_sampler)
-    testdataloader=utils.DataLoader(testdataset,num_workers=args.workers,pin_memory=True,batch_sampler=test_sampler)
+    if args.sampler=="block": # block sampler
+        sampler={x: batch_sampler_block(Dataset[x],samplevec_separa[x],nblock=nblock) for x in separation}
+        dataloader={x: utils.DataLoader(Dataset[x],num_workers=args.workers,pin_memory=True,batch_sampler=sampler[x]) for x in separation}
+    elif args.sampler=="individual": #individual random sampler
+        dataloader={x: utils.DataLoader(Dataset[x],batch_size=args.batch_size,shuffle=True,num_workers=args.workers,pin_memory=True) for x in separation}
+
     ninnersize=int(args.layersize_ratio*ntheta)
     ##store data
-    with open("pickle_traindata.dat","wb") as f1:
-        pickle.dump(traindataloader,f1,protocol=4)
-    
-    with open("pickle_testdata.dat","wb") as f2:
-        pickle.dump(testdataloader,f2,protocol=4)
+    with open("pickle_dataloader.dat","wb") as f1:
+        pickle.dump(dataloader,f1,protocol=4)
     
     dimdict={
         "nsample": (nsample,int),
@@ -506,36 +510,34 @@ def main_worker(gpu,ngpus_per_node,args):
     cudnn.benchmark=True
     ##model training
     for epoch in range(1,args.epochs+1):
-        acctr=train(args,model,traindataloader,optimizer,epoch,device,ntime,scheduler)
-        acc1=test(args,model,testdataloader,device,ntime)
-        # test(args,model,traindataloader,device,ntime) # to record the performance on training sample with model.eval()
+        msetr=train(args,model,dataloader["train"],optimizer,epoch,device,ntime,scheduler)
+        msevalidate=test(args,model,dataloader["validate"],device,ntime)
         if scheduler is not None:
             if args.scheduler=='step':
                 scheduler.step()
             elif args.scheduler=='plateau':
-                scheduler.step(acc1)##not a good implementation, just try to do only train+test
+                scheduler.step(msevalidate)##based on validation set. This is fine as we use train|validate|test separation
         if epoch==1:
-            best_acc1=acc1
-            best_train_acc=acctr
+            best_msevalidate=msevalidate
+            best_train_mse=msetr
         
         # is_best=acc1>best_acc1
-        is_best=acc1<best_acc1
-        is_best_train=acctr<best_train_acc
-        # best_acc1=max(acc1,best_acc1)
-        best_acc1=min(acc1,best_acc1)
-        best_train_acc=min(acctr,best_train_acc)
+        is_best=msevalidate<best_msevalidate
+        is_best_train=msetr<best_train_mse
+        best_msevalidate=min(msevalidate,best_msevalidate)
+        best_train_mse=min(msetr,best_train_mse)
         save_checkpoint({
             'epoch': epoch,
             'arch': args.net_struct,
             'state_dict': model.state_dict(),
-            'best_acc1': best_acc1,
-            'best_acctr': best_train_acc,
+            'best_acc1': best_msevalidate,
+            'best_acctr': best_train_mse,
             'optimizer': optimizer.state_dict(),
             'args_input': args,
         },is_best,is_best_train)
-        # device=torch.device('cpu')
-        # # model=TheModelClass(*args, **kwargs)
-        # model.load_state_dict(torch.load('./1/checkpoint.resnetode.tar',map_location=device))
+    
+    print('\nFinal test MSE\n')
+    acctest=test(args,model,dataloader["test"],device,ntime)
 
 if __name__ == '__main__':
     main()
