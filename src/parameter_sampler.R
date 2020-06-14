@@ -21,7 +21,7 @@ infortab=read.table(file="submitlist.tab",sep="\t",header=TRUE)
 infortab[which(is.na(infortab[,"addon"])),"addon"]=""
 # write.table(training.para.dataframe,sep="\t",file="/Users/mikeaalv/Dropbox (Edison_Lab@UGA)/Projects/Bioinformatics_modeling/nc_model/nnt/model_training/trainsele.tab")
 # seqdir=1:nrow(infortab)
-seqdir=1:7
+seqdir=1:21
 colnam=colnames(infortab)
 for(irow in seqdir){
   infor=infortab[irow,]
@@ -49,10 +49,16 @@ for(irow in seqdir){
   }
   dropout_rate=0.0
   if("addon"%in%colnam && str_detect(string=infor[,"addon"],pattern="^dp")){
-    dropout_rate=str_replace_all(string=infor[,"addon"],pattern="^dp",replacement="")
+    infor[,"addon"] %>% str_replace_all(string=.,pattern="^dp",replacement="") %>%
+                        str_replace_all(string=.,pattern="\\s+.+$",replacement="") -> dropout_rate
   }
   if("addon"%in%colnam && str_detect(string=infor[,"addon"],pattern="^scheduler")){
-    scheduler=str_replace_all(string=infor[,"addon"],pattern="^scheduler\\_",replacement="")
+    infor[,"addon"] %>% str_replace_all(string=.,pattern="^scheduler\\_",replacement="") %>%
+                        str_replace_all(string=.,pattern="\\s+.+$",replacement="") -> scheduler
+  }
+  sampler="block"
+  if("addon"%in%colnam && str_detect(string=infor[,"addon"],pattern="randomsamp")){
+    sampler="individual"
   }
   rnnadd=""
   if(str_detect(string=infor[,"net_struct"],pattern="\\_rnn")){
@@ -76,13 +82,16 @@ for(irow in seqdir){
               "--p",dropout_rate,
               "--scheduler",scheduler,
               "--lr-print 1",
+              "--sampler ",sampler,
+              "--timeshift-transformp ",infor[,"timeshift_p"],
+              "--linearcomb-transformp",infor[,"lincomb_p"],
               rnnadd,
               lineend,
               sep=" "
             )
   newfile=paste0(str_replace(string=shellscript,pattern="\\.sh",replacement=""),infor[1],".sh")
   cat(lines,file=newfile,sep="\n")
-  submitcommand=paste0("sbatch ",newfile)
+  submitcommand=paste0("qsub ",newfile)
   print(submitcommand)
   system(submitcommand)
   setwd("../")

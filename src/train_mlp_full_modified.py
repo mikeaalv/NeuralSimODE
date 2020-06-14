@@ -18,6 +18,7 @@ from nltk import flatten
 import re
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
+from itertools import permutations
 
 import torch
 import torch.nn.parallel
@@ -56,10 +57,12 @@ args_internal_dict={
     "inputfile": ("sparselinearode_new.small.stepwiseadd.mat",str),## the file name of input data
      "p": (0.0,float),#probability used in dropout
      "gpu_use": (1,int),# whehter use gpu (1) or not (0)
-     "scheduler": ("",str),# the lr decay scheduler choices: step, plateau, cycliclr
+     "scheduler": ("",str),# the lr decay scheduler choices: step, plateau, cyclelr
      "lr_print": (0,int),
      "rnn_struct": (0,int),#whether use rnn structure
-     "sampler": ("block",str)##sampler to use. "block" sampler or "individual" sampler
+     "sampler": ("block",str),##sampler to use. "block" sampler or "individual" sampler
+     "timeshift_transformp": (0.0,float),##transformation input data by shift initial condition and time. This is the probability that such transform is performed
+     "linearcomb_transformp": (0.0,float)##transform input data by random combine two samples. This is the probability that such transform is performed
 }
 ###fixed parameters: for communication related parameter within one node
 fix_para_dict={#"world_size": (1,int),
@@ -82,10 +85,12 @@ def train(args,model,train_loader,optimizer,epoch,device,ntime,scheduler):
         # target=target.cuda(args.gpu,non_blocking=True)
         
         # Transform ******
-        # if: # linear combination transform
-        #
-        # if: # time shift transform
-            
+        if args.timeshift_transformp>0.0 and args.sampler=="block": # linear combination transform
+            data, target=trans_time_shift(data,target,args,ntime)
+        
+        if args.linearcomb_transformp>0: # time shift transform
+            data, target=trans_lin_comb(data,target,args,ntime)
+                
         if args.rnn_struct==0:
             data,target=data.to(device),target.to(device)
             output=model(data)
@@ -132,7 +137,7 @@ def train(args,model,train_loader,optimizer,epoch,device,ntime,scheduler):
                 epoch,batch_idx*len(data),len(train_loader.dataset),
                 100. * batch_idx*len(data)/len(train_loader.dataset),loss.item()*ntime,lrstr))
         
-        if args.scheduler=='cycliclr':#clclicLR need to make steps for each mini-batch
+        if args.scheduler=='cyclelr':#clclicLR need to make steps for each mini-batch
             scheduler.step()
         
         trainloss.append(loss.item())
@@ -280,16 +285,60 @@ def plot_grad_flow(named_parameters):
     plt.savefig("test.pdf")
     sys.exit('plotting')
 
-def trans_lin_comb():
+def trans_lin_comb(data,target,args,ntime):
     """
     Data augmentation: produce new training sample
     doesn't follow the format of transformer as the function takes two sample and produce one sample
     """
-def trans_time_shift():
+    ntheta_real=args.ntheta-1-args.nspec
+    theta_ind=list(range(0,ntheta_real))
+    timevec=data[:,-1]
+    unique_time,counts=np.unique(timevec,return_counts=True)
+    time_duplicated=unique_time[counts>1]
+    # nsamp=math.floor(time_duplicated.__len__()*args.linearcomb_transformp)
+    # seletimes=random.sample(range(0,len(time_duplicated)),nsamp)
+    for seletime_ind in range(0,len(time_duplicated)):
+        seletime=time_duplicated[seletime_ind]
+        dupmask=np.equal(np.array(timevec),np.array(seletime))
+        duploc=list(np.squeeze(np.where(dupmask)))
+        perm=list(permutations(set(range(0,len(duploc))),2))##pair permutations
+        nsamp_eachtime=math.floor(len(duploc)*args.linearcomb_transformp)##p percent of the number of time duplicated samples
+        seletperms=random.sample(range(0,len(perm)),nsamp_eachtime)
+        for permind in seletperms:
+            permpair=perm[permind]
+            duplocpair=[duploc[x] for x in list(permpair)]
+            a_ratio=random.uniform(0,1)
+            data[duplocpair[1],theta_ind]=data[duplocpair[0],theta_ind]*a_ratio+data[duplocpair[1],theta_ind]*(1.0-a_ratio)
+            target[duplocpair[1],:]=target[duplocpair[0],:]*a_ratio+target[duplocpair[1],:]*(1.0-a_ratio)
+    
+    return data, target
+
+def trans_time_shift(data,target,args,ntime):
     """
     Data augmentation: produce time shift sample
     doesn't follow the format of transformer
     """
+    inputsize=data.shape
+    outputsize=target.shape
+    nsample=inputsize[0]
+    niteration=math.floor(nsample/ntime)
+    nblocksamp=math.floor(ntime*args.timeshift_transformp)##for each block
+    ini_ind=list(range(inputsize[1]-1-outputsize[1],inputsize[1]-1))
+    for iteration in range(0,niteration):
+        blockinds=list(range(iteration*ntime,(iteration+1)*ntime))
+        perm=list(permutations(set(range(0,ntime)),2))##pair permutations
+        seleseq=random.sample(range(0,len(perm)),nblocksamp)
+        for seleele in seleseq:
+            currpair=perm[seleele]
+            currpairind=[blockinds[x] for x in currpair]
+            timevec=[data[x,-1] for x in currpairind]
+            ind_order=[0, 1]##[small big]
+            if timevec[0]>timevec[1]:
+                ind_order=[1, 0]
+            data[currpairind[ind_order[1]],-1]=timevec[ind_order[1]]-timevec[ind_order[0]]+args.mintime
+            data[currpairind[ind_order[1]],ini_ind]=target[currpairind[ind_order[0]],:]
+    return data, target
+
 def main():
     # Training settings load-in through command line
     parser=argparse.ArgumentParser(description='PyTorch Example')
@@ -361,7 +410,7 @@ def main_worker(gpu,ngpus_per_node,args):
     nspec=(ResponseVarnorm.shape)[1]
     simusamplevec=np.unique(samplevec)
     separation=['train','validate','test']
-    numsamptest_validate=math.floor((simusamplevec.__len__())*args.test_ratio/2)
+    numsamptest_validate=math.floor((simusamplevec.__len__())*args.test_validate_ratio/2)
     sampleind=set(range(0,nsample))
     simusampeind=set(range(0,nthetaset))
     ## a preset whole time range for test, validation (groups)
@@ -389,20 +438,26 @@ def main_worker(gpu,ngpus_per_node,args):
     samplevec_separa={x: samplevec[time_in_ind[x]] for x in separation}
     Xvar_separa={x: Xvar[list(ind_separa[x]),:] for x in separation}
     Xvarnorm=np.empty_like(Xvar)
-    Xvar_norm_separa={}
+    # Xvar_norm_separa={}
     if args.normalize_flag is 'Y':
         ##the normalization if exist should be after separation of training and testing data to prevent leaking
         ##normalization (X-mean)/sd
         ##normalization include time. Train and test model need to have at least same range or same mean&sd for time
+        del(Xvar)
         for x in separation:
             Xvartemp=Xvar_separa[x]
-            temp_norm_mat=(Xvartemp-Xvartemp.mean(axis=0))/Xvartemp.std(axis=0)
-            Xvar_norm_separa[x]=temp_norm_mat
-            Xvarnorm[list(ind_separa[x]),:]=np.copy(temp_norm_mat)
+            meanvec=Xvartemp.mean(axis=0)
+            stdvec=Xvartemp.std(axis=0)
+            for coli in range(0,len(meanvec)):
+                Xvartemp[:,coli]=(Xvartemp[:,coli]-meanvec[coli])/stdvec[coli]
+            
+            # Xvar_norm_separa[x]=copy.deepcopy(temp_norm_mat)
+            Xvarnorm[list(ind_separa[x]),:]=copy.deepcopy(Xvartemp)
         
     else:
-        Xvar_norm_separa={x: Xvar_separa[x] for x in separation}
+        # Xvar_norm_separa={x: Xvar_separa[x] for x in separation}
         Xvarnorm=np.copy(Xvar)
+        del(Xvar)
     
     #samplevecXX repeat id vector, XXind index vector
     inputwrap={"Xvarnorm": (Xvarnorm),
@@ -443,6 +498,7 @@ def main_worker(gpu,ngpus_per_node,args):
     elif args.sampler=="individual": #individual random sampler
         dataloader={x: utils.DataLoader(Dataset[x],batch_size=args.batch_size,shuffle=True,num_workers=args.workers,pin_memory=True) for x in separation}
 
+    args.mintime=np.min(Xvarnorm[:,-1])
     ninnersize=int(args.layersize_ratio*ntheta)
     ##store data
     with open("pickle_dataloader.dat","wb") as f1:
@@ -502,8 +558,8 @@ def main_worker(gpu,ngpus_per_node,args):
         scheduler=lr_scheduler.StepLR(optimizer,step_size=200,gamma=0.5)
     elif args.scheduler=='plateau':
         scheduler=lr_scheduler.ReduceLROnPlateau(optimizer,'min',factor=0.5)
-    elif args.scheduler=='cycliclr':
-        scheduler=lr_scheduler.CyclicLR(optimizer,args.learning_rate/100,args.learning_rate,step_size_up=1000)
+    elif args.scheduler=='cyclelr':
+        scheduler=lr_scheduler.CyclicLR(optimizer,args.learning_rate/100,args.learning_rate,step_size_up=1000,cycle_momentum=False,mode="triangular2")
     else:
         scheduler=None
     
