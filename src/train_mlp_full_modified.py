@@ -481,6 +481,8 @@ def main_worker(gpu,ngpus_per_node,args):
     with open("pickle_inputwrap.dat","wb") as f1:
         pickle.dump(inputwrap,f1,protocol=4)##protocol=4 if there is error: cannot serialize a bytes object larger than 4 GiB
     
+    del(inputwrap)
+    
     Xtensor={x: torch.Tensor(Xvarnorm[list(time_in_ind[x]),:]) for x in separation}
     Resptensor={x: torch.Tensor(ResponseVar[list(time_in_ind[x]),:]) for x in separation}
     Dataset={x: utils.TensorDataset(Xtensor[x],Resptensor[x]) for x in separation}
