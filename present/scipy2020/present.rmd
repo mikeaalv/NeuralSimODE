@@ -1,0 +1,200 @@
+---
+title: "PyTorch-Based Neural Network Approximation of ODE Solutions"
+author: Yue Wu, Arthur Edison, Jonathan Arnold, Shannon Quinn, Heinz-Bernd Schuttler and Michael Judge
+date: 06 15, 2020
+output:
+  bookdown::html_document2:
+    toc: true
+    toc_depth: 3
+    self_contained: true
+params:
+  n: 100
+bibliography: /Users/yuewu/Dropbox (Edison_Lab@UGA)/Projects/Bioinformatics_modeling/Documents/abstract/scipy2020/reference/scipy2020.ris
+---
+
+```{r setup, include=FALSE}
+#eval=FALSE echo=FALSE include=FALSE
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Backgraound
+
+Ordinary differential equations (ODE) based simulation is a popular choice on modeling real-world systems, including metabolic networks, gene regulatory systems and epidemiology [@273; @255; @457]. For the model to be representative, inverse problem often need to be solved: estimating unknown parameters or links from experimental measurements. While ODE can often capture the real-world dynamics, solving the inverse problem is often hard, involving considerable ODE simulations and nonlinear optimization [@273].
+
+Inference of model parameters is a nonlinear optimization problem: evaluating model prediction with measurements by objective function, and sampling a model of better performance (Figure \@ref(fig:diagram-invserseprob) ). This process requires considerable iterations of producing and evaluating different models. A simplified model of central metabolism involves 32 equations and ~200 parameters and is fit with ~1000 data points. A Markov chain Monte Carlo (MCMC) ( \@ref(faq1) ) algorithm [@273] needs around $10^7$  ODE simulations. Even with modern ODE solver (Adaptive Backward Differentiation), it still takes about a week to finish. When the parameter set is stiff, considerably more time is needed, if not impossible. Previously, we construct a system to systematically ignore stiff parameter sets ([pearc2019](https://www.dropbox.com/s/i3ln8kkn5efy7nv/poster.final3.pdf?dl=0)). This reduces the simulation time cost, while at the same time unavoidably introduce biases.
+  
+```{r diagram-invserseprob,fig.show="hold",fig.align='center',fig.cap="Inverse problem diagram.", fig.dim=c(2,4),out.width="100%",echo=FALSE}
+DiagrammeR::grViz("digraph {
+  graph [layout = dot, rankdir = LR]
+  
+  node [shape = rectangle]
+  rec1 [label = 'unknown model']
+  rec2 [label = 'observatives']
+  rec3 [label = 'assumed model']
+  rec4 [label = 'prediction']
+  rec5 [label = 'objective function']
+
+  # edge definitions with the node IDs
+  rec1 -> rec2 [label = 'produce']
+  rec3 -> rec4 [label = 'ODE solver']
+  rec2 -> rec5
+  rec4 -> rec5
+  }",
+  height = 100)
+```
+  
+While ODE solver has adaptive time cost, neural network has relative constant cost, which is also often small. There has been success in simulating dynamic system by neural network [@466; @458; @465] but a high dimension initial value problem hasn't been carefully studied yet. In initial value problem, the input is parameters of the assumed model and the output is the time dynamics. This is often the inner loop of the inverse problem. In this project, we explored the possibility of replacing ODE solver with trained neural networks for initial value problem. The trained neural network can later be used in solving inverse problems.
+
+# Methods
+
+Dynamics ($Y(t)$) of an ODE system solely depends on initial conditions ($Y_{ini}$), model parameters ($\theta$), and time ($t$). In both ODE solver and neural network, we can treat the vector $X=[\theta, Y_{ini}, t]$ as the input and the vector $Y(t)$ as the output. Simulation of such a system by ODE solver can produce pairs $[X, Y(t)]$ as training data.
+
+## Neural network architecture
+
+ResNet has been a popular structure in multiple task including image classification and it simplifies the training process by identity matching [@450]. In our modified architecture, we replaced the convolutional layer with linear layer. For example, [resnet18_mlp](https://github.com/artedison/NeuralSimODE/blob/fc5699f8962087fef1c74da62969f742bf96c288/src/nnt_struc.py#L458) is similar to original resnet18 [@450], except that we used [nn.Linear](https://github.com/artedison/NeuralSimODE/blob/fc5699f8962087fef1c74da62969f742bf96c288/src/nnt_struc.py#L27) to replace [nn.Conv2d](https://github.com/pytorch/vision/blob/c2e8a00885e68ae1200eb6440f540e181d9125de/torchvision/models/resnet.py#L35) (find more details [here](https://github.com/artedison/NeuralSimODE/blob/fc5699f8962087fef1c74da62969f742bf96c288/src/nnt_struc.py) and the following code block). The hidden layer size was controlled by its ratio ($R$) to the input layer size so, network complexity was automatically adjusted in dynamic systems of different size. Batch normalization and RELU (rectified linear unit) were used in the architecture [@464]. Adam was used as the optimizer [@463]. Hyperparameter tuning was done both manually and by Optuna [@462]. Mean squared error (MSE) was the objective function. 20% of samples are leaved out for testing. Besides ResNet, multilayer perceptron (MLP) and recurrent structures were also tested. The neural network was implemented in [PyTorch](https://pytorch.org) and shared in [GitHub](https://github.com/artedison/NeuralSimODE/tree/master/src).
+
+```{python codeblock, eval=FALSE, fig.cap=""}
+class BasicBlock(nn.Module):
+    expansion=1
+    __constants__=['downsample']
+
+    def __init__(self,inplanes,planes,downsample=None,groups=1,
+                 base_width=64,norm_layer=None,p=0.0):
+        # inplanes: input size
+        # planes: internal size
+        # downsample: whehter downsample the idnetify mapping. default: None
+        # groups: was used for "Aggregated Residual Transformation" (not used currently) Defualt 1
+        # width_per_group: used for "Wide Residual Networks" and "Aggregated Residual Transformation" Defualt 64
+        # norm_layer: used to specify batch normalization function. Default None
+        # p: dropbout probability Default 0.0
+        super(BasicBlock,self).__init__()
+        if norm_layer is None:
+            norm_layer=nn.BatchNorm1d
+        if groups != 1 or base_width != 64:
+            raise ValueError('BasicBlock only supports groups=1 and base_width=64')
+        self.fc1=line1d(inplanes,planes)
+        self.bn1=norm_layer(planes)
+        self.relu=nn.ReLU(inplace=True)
+        self.fc2=line1d(planes,inplanes)
+        self.bn2=norm_layer(inplanes)
+        self.downsample=downsample
+        self.p=p
+
+    def forward(self,x):
+        identity=x
+        out=F.dropout(self.fc1(x),training=self.training,p=self.p)
+        out=self.bn1(out)
+        out=self.relu(out)
+        out=F.dropout(self.fc2(out),training=self.training,p=self.p)
+        out=self.bn2(out)
+
+        if self.downsample is not None:
+            identity = self.downsample(x)
+
+        out += identity
+        out=self.relu(out)
+        return out
+```
+
+The model is trained on P100 GPUs of both sapelo2 at [GACRC](https://gacrc.uga.edu) and PSC Bridges at [XSEDE](https://www.xsede.org).
+
+## Training data simulation {#training}
+
+We simulated dynamic systems of different complexities as training samples. The coupled linear ODE system is simulated with different dimensions (4-32) (\@ref(tab:table1)), fixed topology, and 10000 random generated parameter sets. We shifted the eigen value to be negative in real part to resemble most real-world systems. For linear ODE, we produced analytic solutions without ODE solver and list detailed procedures in \@ref(faq2). Simulated dynamics were normalized to simplify result interpretation: $\widetilde{Y_n(t_m)} = \frac{Y_n(t_m)}{\sqrt{\Omega_{n}}}$ and $\Omega_{n}=\sum^{M}_{m=1}{|Y_n(t_m)|^2}$.
+
+```{r table1,echo=FALSE, results='asis'}
+dim=c(2,3,4,8,12,16)
+ntheta=c(3,5,7,15,27,37)*2
+ny=c(4,6,8,16,24,32)
+ninput=c(11,17,23,47,79,107)
+noutput=c(4,6,8,16,24,32)
+dim_tab=data.frame("dimension of system"=dim,"number of theta"=ntheta,"number of Ys"=ny,"number of inputs"=ninput,"number of outputs"=noutput)
+knitr::kable(dim_tab,caption="Dimensions of simulated data set. The equations are simualted in complex number so, here number of Ys (real and imaginary) are double the dimension of the system. Refer to \\@ref(faq2) for details in simulation",col.names=c("dimension of the system","number of theta","number of Ys","number of inputs","number of outputs"))
+```
+
+# result
+
+We have successfully approximated solutions for low dimension ODE. For ODE system with six equations, the neural network can achieve MSE of 0.2 for both training and testing set after 500 epochs (Figure 3.1) Some representative cases of training and testing samples are presented (Figure 3.2). As similar performance exists for training and testing sets, further training and hyperparameter tuning can probably improve the results. From Figure 3.2 we can also see that different dynamics can be approximated. Similar performance can also be achieved by MLP.
+
+<center>
+
+![](/Users/yuewu/Dropbox (Edison_Lab@UGA)/Projects/Bioinformatics_modeling/nc_model/nnt/simulation/simulat.linear.small.corr/result/res1/mse_epoch.png){#id .class width=70% height=70%}
+
+</center>
+Figure 3.1: MSE through epochs for multiple training settings. Preliminary  training results are presented. Solid (dotted) line represent the MSE on training (testing) set. The best models is based on ResNet18, have hidden layer size eight times that of the input layer and use Adam optimizer. Details on training process can be found in Methods \@ref(training).
+
+
+![](/Users/yuewu/Dropbox (Edison_Lab@UGA)/Projects/Bioinformatics_modeling/nc_model/nnt/simulation/simulat.linear.small.corr/result/res1/test_0_spec_3_6_train.png){#id .class width=40% height=40%}
+![](/Users/yuewu/Dropbox (Edison_Lab@UGA)/Projects/Bioinformatics_modeling/nc_model/nnt/simulation/simulat.linear.small.corr/result/res1/test_30_spec_2_6_train.png){#id .class width=40% height=40%}
+
+![](/Users/yuewu/Dropbox (Edison_Lab@UGA)/Projects/Bioinformatics_modeling/nc_model/nnt/simulation/simulat.linear.small.corr/result/res1/test_921_spec_5_6_test.png){#id .class width=40% height=40%}
+![](/Users/yuewu/Dropbox (Edison_Lab@UGA)/Projects/Bioinformatics_modeling/nc_model/nnt/simulation/simulat.linear.small.corr/result/res1/test_916_spec_1_6_test.png){#id .class width=40% height=40%}
+  
+Figure 3.2: Fitting results of preliminary trained model. The first (second) row is the model performance in the training (testing) set. X-axis is time and Y-axis is normalized $Y$. Two cases are presented for both training and testing set. The blue curve is the ground truth (simulation) and the orange curve is neural network prediction. Details in neural network training can be found in Methods \@ref(training).
+
+
+The neural network performances decay with higher dimensions of the ODE set. Specifically, for ODE system with 32 equations, the model performance is still not good after extensive hyperparameter tuning (including by Optuna [@462]) and trying different technical options. We have tried multiple options of scheduler, recurrent architectures, and optimizer. We also tried using larger training sample. Among these trials, [ReduceLROnPlateau](https://pytorch.org/docs/stable/optim.html#torch.optim.lr_scheduler.ReduceLROnPlateau) scheduler, [Adam](https://pytorch.org/docs/stable/optim.html#torch.optim.Adam) optimizer, and larger sample size helped.
+
+# Next steps
+
+1. Training the neural network on larger data sets. Efficient approaches are needed for simulating and training in large data sets. Both processes will need parallization. A separate data loading process is also necessary because of the memory cost.
+
+2. Data augmentation is needed to promote training. Some new transformation of time dynamics has been implemented and is currently under testing.
+
+# Aknowledgement
+
+We thank [GACRC](https://gacrc.uga.edu) and [XSEDE](https://www.xsede.org) for computational resources and technical supports.
+
+# FAQ
+
+## Why is MCMC used instead of other nonlinear optimizer? {#faq1}
+
+MCMC is often used to generate random samples from complex distributions. By including MSE in  transition probability, MCMC can converge to a local fit region in the parameter space. This local region contains many parameter sets (the model ensemble) and each sampled model from MCMC will have similar MSE on the experimental measurements. An ensemble of similar fitted models gives a natural uncertainty estimation for the fitting. This is particularly crucial when less training data is available compared with the model complexity.
+
+## The detailed procedure for simulating linear ODE {#faq2}
+
+The procedure is to compute the ODE $\frac{dY(t)}{dt}=HY(t)$ and format the input and output for neural network. There is $N$ dimensions (equations of complex number) and $M$ time points.
+
+a. Random select non-zero elements (NE) for $H$ matrix. Diagonal elements are always included and they represent the contribution of a value to its own derivative. This topology (location of non-zero elements) is fixed for the following simulations and recorded in $I_{conn}$
+
+b. Generate $\widetilde{H}$
+
+    For each NE, sample for real and imaginary parts from $Unif(-1,1)$
+    
+c. Eigen value shifting
+
+    Decomposition $\widetilde{H}=U'D'V'$ and $d'=diag(D')$
+    
+    $\Delta{d'}=|max(real(d'))|$
+    
+    $H=\widetilde{H}-S \Delta d' I$ where $S=1.01$ to make sure all eigen values haave negative real part and so the dynamic system doesn't diverge.
+    
+    Decomposition $H=UDV$
+    
+d. Generate $Y_{ini}$
+
+    Sample real and imaginary parts from $Unif(-1,1)$
+
+e. Generate time series for time grid $\hat{t}=[t_1, ..., t_M]$
+    
+    $A=VY_{ini}$
+    
+    $B=[u_1 a_1, ... u_k a_k, ..., u_Na_N]=U \ diag(A)$, $u_k$ is the k-th column vector of U
+    
+    $E=[e^{\hat{d} \hat{t}} ]$ where $\hat{d}=diag(D)$
+    
+    $Y(t)=BE$
+    
+f. Rescale time series
+
+    For every equation ($n$) in $N$, the normalized result is
+    
+    $\widetilde{Y_n(t_m)} = \frac{Y_n(t_m)}{\sqrt{\Omega_{n}}}$ where $\Omega_{n}=\sum^{M}_{m=1}{|Y_n(t_m)|^2}$
+    
+g. Formulate input and output for neural network
+
+    Input: $[Re(H(I_{conn})), Im(H(I_{conn})), Re(Y_{ini}), Im(Y_{ini}),\hat{t}]$
+    
+    Output: $[Re(Y(t)), Im(Y(t)]$
+    
+# Reference
