@@ -146,10 +146,6 @@ The neural network performances decay with higher dimensions of the ODE set. Spe
 
 2. Data augmentation is needed to promote training. Some new transformation of time dynamics has been implemented and is currently under testing.
 
-# Aknowledgement
-
-We thank [GACRC](https://gacrc.uga.edu) and [XSEDE](https://www.xsede.org) for computational resources and technical supports.
-
 # FAQ
 
 ## Why is MCMC used instead of other nonlinear optimizer? {#faq1}
@@ -201,5 +197,17 @@ g. Formulate input and output for neural network
     Input: $[Re(H(I_{conn})), Im(H(I_{conn})), Re(Y_{ini}), Im(Y_{ini}),\hat{t}]$
     
     Output: $[Re(Y(t)), Im(Y(t)]$
-    
+
+# Aknowledgement
+
+This is work is supported by NSF MCB-1713746. We thank [GACRC](https://gacrc.uga.edu) and [XSEDE](https://www.xsede.org) for computational resources and technical supports. XSEDE is supported supported by National Science Foundation grant number ACI-1548562. Our start-up grant in XSEDE(TG-MCB180198) use GPU resources in PSC Bridge. We thank the Georgia Research Alliance, the Institute of Bioinformatics, and the Complex Carbohydrate Research Center for supporting this work.
+
+![](/Users/yuewu/Dropbox (Edison_Lab@UGA)/yuewu_local/icons/ccrc.png){#id .class width=20% height=20%}
+![](/Users/yuewu/Dropbox (Edison_Lab@UGA)/yuewu_local/icons/gacrc.png){#id .class width=20% height=20%}
+![](/Users/yuewu/Dropbox (Edison_Lab@UGA)/yuewu_local/icons/gra.png){#id .class width=20% height=20%}
+![](/Users/yuewu/Dropbox (Edison_Lab@UGA)/yuewu_local/icons/iob.png){#id .class width=20% height=20%}
+![](/Users/yuewu/Dropbox (Edison_Lab@UGA)/yuewu_local/icons/nsf.png){#id .class width=10% height=10%}
+![](/Users/yuewu/Dropbox (Edison_Lab@UGA)/yuewu_local/icons/uga.png){#id .class width=10% height=10%}
+![](/Users/yuewu/Dropbox (Edison_Lab@UGA)/yuewu_local/icons/xsede.png){#id .class width=20% height=20%}
+
 # Reference
