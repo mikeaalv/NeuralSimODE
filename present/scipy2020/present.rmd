@@ -10,6 +10,11 @@ output:
 params:
   n: 100
 bibliography: /Users/yuewu/Dropbox (Edison_Lab@UGA)/Projects/Bioinformatics_modeling/Documents/abstract/scipy2020/reference/scipy2020.ris
+knit: (function(input_file, encoding) {
+  out_dir <- 'docs';
+  rmarkdown::render(input_file,
+ encoding=encoding,
+ output_file=file.path(dirname(input_file), out_dir, 'index.html'))})
 ---
 
 ```{r setup, include=FALSE}
