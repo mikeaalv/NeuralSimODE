@@ -1,6 +1,6 @@
 ---
 title: "PyTorch-Based Neural Network Approximation of ODE Solutions"
-author: Yue Wu, Arthur Edison, Jonathan Arnold, Shannon Quinn, Heinz-Bernd Schuttler and Michael Judge
+author: Yue Wu, Michael Judge, Jonathan Arnold, Arthur Edison, Shannon Quinn, and Heinz-Bernd Schuttler
 date: 06 15, 2020
 output:
   bookdown::html_document2:
