@@ -5,3 +5,4 @@
 /tests/__*
 .coverage
 *.doc*
+*.ai
