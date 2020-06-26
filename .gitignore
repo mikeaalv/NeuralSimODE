@@ -4,3 +4,6 @@
 /tests/output/*
 /tests/__*
 .coverage
+*.doc*
+*.ai
+*.png
